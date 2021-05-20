@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/utsname.h>
 
 #define PROC_DIR "/proc/"
 
@@ -18,6 +19,7 @@ typedef enum LINE_TYPE {
 	PL_NAME,
 	PL_PID,
 	PL_UID_R,
+	PL_PPID,
 	PL_IRRELEVANT
 } LINE_TYPE;
 typedef struct {
@@ -34,9 +36,19 @@ typedef struct x_dirent {
 typedef struct pid_info {
 	char *name;
 	pid_t pid;
+	pid_t ppid;
 	uid_t uid;
 	struct pid_info *next;
 } PID_INFO;
+
+typedef struct pidtree_entry {
+	PID_INFO *pid;
+
+	struct pidtree_entry *next;
+	struct pidtree_entry *prev;
+	struct pidtree_entry *child;
+
+} PIDTREE_ENTRY;
 
 static void
 die_with_error(const RETURN *ret) {
@@ -65,6 +77,8 @@ get_line_name(char buffer[1000], int *colon)
 		return PL_PID;
 	else if(strcmp(buffer, "Uid") == 0)
 		return PL_UID_R;
+	else if(strcmp(buffer, "PPid") == 0)
+		return PL_PPID;
 	else
 		return PL_IRRELEVANT;
 }
@@ -132,7 +146,7 @@ limit_string(char *p)
 	}
 }
 
-static void
+/*static void
 get_pid(char *pid_s, PID_INFO *pid_info)
 {
 	char *p;
@@ -148,6 +162,25 @@ get_pid(char *pid_s, PID_INFO *pid_info)
 		return;
 	}
 	pid_info->pid = pid;
+	free(pid_s);
+}*/
+
+static void
+get_pid(char *pid_s, pid_t *i)
+{
+	char *p;
+	long pid;
+	if (pid_s == NULL)
+		*i= -1;
+	p = pid_s;
+	limit_string(p);
+	pid = strtol(pid_s, &p, 10);
+	if(*p != '\0')
+	{
+		*i = -1;
+		return;
+	}
+	*i = pid;
 	free(pid_s);
 }
 
@@ -182,17 +215,20 @@ check_line(char buffer[1000], PID_INFO *pid_info)
 		get_name(pull_value(buffer, colon), pid_info);
 		break;
 	case PL_PID:
-		get_pid(pull_value(buffer, colon), pid_info);
+		get_pid(pull_value(buffer, colon), &(pid_info->pid));
 		break;
 	case PL_UID_R:
 		get_uid_r(pull_value(buffer, colon), pid_info);
+		break;
+	case PL_PPID:
+		get_pid(pull_value(buffer, colon), &(pid_info->ppid));
 		break;
 	default:
 		break;
 	}
 }
 
-static void
+static int
 process_pid(char directory[256], uid_t uid, PID_INFO *user_pids)
 {
 	int fd, pos, numRead, bad_line;
@@ -203,7 +239,7 @@ process_pid(char directory[256], uid_t uid, PID_INFO *user_pids)
 
 	pid = strtol(directory,&endptr,10);
 	if(*endptr != '\0')
-		return;
+		return -1;
 
 	full_path[0] = '\0';
 	strcat(full_path,PROC_DIR);
@@ -211,7 +247,10 @@ process_pid(char directory[256], uid_t uid, PID_INFO *user_pids)
 	strcat(full_path,"/status");
 
 	if((fd = open(full_path, O_RDONLY)) == -1)
+	{
 		printf("Cannot Find PID:%s\n", full_path);
+		return -1;
+	}
 	else
 	{
 		pos = 0;
@@ -244,9 +283,10 @@ process_pid(char directory[256], uid_t uid, PID_INFO *user_pids)
 		int x;
 		x = 5;
 	}
+	return 0;
 }
 
-static void walk_pid(RETURN *ret, uid_t uid)
+static void walk_pid(RETURN *ret)
 {
 	struct dirent *dir_entry = NULL;
 	DIR *dir = NULL;
@@ -265,6 +305,11 @@ static void walk_pid(RETURN *ret, uid_t uid)
 	while((dir_entry = readdir(dir)) != NULL)
 	{
 		strcpy(list->directory, dir_entry->d_name);
+		printf("%s\n", list->directory);
+		/*if(strcmp(list->directory,"3278") == 0)
+		{
+			printf("doing\n");
+		}*/
 		last = list;
 		list->next = malloc(sizeof(X_DIRENT));
 		list = list->next;
@@ -304,7 +349,7 @@ output_user_pids(RETURN *ret, uid_t uid)
 	user_pids = malloc(sizeof(PID_INFO));
 	if (user_pids == NULL)
 		errExit("malloc\n");
-	head = user_pids;
+	head = user_pids;;
 	zero_pid(user_pids);
 	list = (X_DIRENT*)ret->object;
 	while(list != NULL)
@@ -348,6 +393,199 @@ output_user_pids(RETURN *ret, uid_t uid)
 	}
 }
 
+// search down children
+
+// search each child[children]
+static PIDTREE_ENTRY
+*search_root(PIDTREE_ENTRY *root, PIDTREE_ENTRY *pid)
+{
+	/*PIDTREE_ENTRY *local;
+	local = root->root_head;
+	while(local != NULL)
+	{
+		if (local->pid->pid == pid->pid->ppid)
+		{
+			insert_root(pid, local);
+		}
+	}*/
+}
+
+static PIDTREE_ENTRY
+*find_parent_in_tree(PIDTREE_ENTRY *pid, PIDTREE_ENTRY *head)
+{
+	PIDTREE_ENTRY *found, *cur, *c_cur, *lag, *swap;
+
+	cur = head->next;
+	while(cur != NULL)
+	{
+		if(cur->pid->pid == pid->pid->ppid)
+		{
+			return cur;
+		}
+		if(cur->child != NULL)
+		{
+			if(cur->child->pid->pid == pid->pid->ppid)
+				return cur->child;
+
+			swap = find_parent_in_tree(pid, cur->child);
+			if (swap != NULL)
+				return swap;
+		}
+		cur = cur->next;
+	}
+	return NULL;
+}
+
+static void
+insert_root(PIDTREE_ENTRY *new, PIDTREE_ENTRY *head)
+{
+	PIDTREE_ENTRY *tail;
+	tail = head;
+	while (tail->next != NULL)
+		tail = tail->next;
+	tail->next = new;
+}
+static void
+link_children_to_parent(PIDTREE_ENTRY *possible, PIDTREE_ENTRY *head)
+{
+	PIDTREE_ENTRY *cur, *lag;
+	lag = cur = head;
+	while((cur = cur->next) != NULL)
+	{
+		if(cur->pid->ppid == possible->pid->pid)
+		{
+			if(possible->child == NULL)
+				possible->child = cur;
+			else
+				insert_root(cur,possible->child);
+			lag->next = cur->next;
+		}
+	}
+}
+
+static void // NO RECURSION ON THIS FUNCTION
+place_pid(PID_INFO *pid, PIDTREE_ENTRY *head)
+{
+	PIDTREE_ENTRY *x_head, *new, *parent;
+	x_head = head;
+	if(pid->pid == -1 || pid->ppid == -1 || pid->uid == -1 || pid->name == NULL)
+		return;
+
+	new = malloc(sizeof(PIDTREE_ENTRY));
+	memset(new,0,sizeof(PIDTREE_ENTRY));
+
+	new->pid = pid;
+
+	if(pid->pid == 3278)
+	{
+		int zzzz;
+		zzzz = 5;
+	}
+
+	parent = find_parent_in_tree(new,head);
+	if(parent == NULL)
+	{
+		insert_root(new,head);
+	}
+	else
+	{
+		if(parent->child == NULL)
+			parent->child = new;
+		else
+			insert_root(new,parent->child);
+	}
+	link_children_to_parent(new,head);
+}
+
+static void
+print_pid(PID_INFO *pid, int level)
+{
+	if(strcmp(pid->name,"12") == 0)
+	{
+		printf("DOING\n");
+	}
+	while(level > 0)
+	{
+		printf("\t");
+		level--;
+	}
+	printf("%s|%ld|%ld|%ld\n", pid->name, (long)pid->ppid, (long)pid->pid, (long)pid->uid);
+}
+
+static void
+print_level(PIDTREE_ENTRY *t, int level)
+{
+	PIDTREE_ENTRY *p;
+	p = t;
+	while((p = p->next) != NULL)
+	{
+		if(p->pid->pid == 5114)
+		{
+			printf("DEDON\n");
+		}
+		print_pid(p->pid, level);
+		if(p->child != NULL)
+		{
+			print_pid(p->child->pid,level+1);
+			print_level(p->child,level+1);
+		}
+	}
+}
+
+static void
+display_process_tree(PIDTREE_ENTRY *ptree)
+{
+	printf("System:{%s, %ld, %ld, %ld}\n",ptree->pid->name, ptree->pid->uid, ptree->pid->pid, ptree->pid->ppid);
+	print_level(ptree,1);
+}
+
+void
+__12_2__main()
+{
+	X_DIRENT *cur, *head;
+	RETURN ret;
+	PID_INFO *pids, *kernel;
+	PIDTREE_ENTRY *ptree;
+	struct utsname un;
+	char file[268];
+
+	memset(&ret,0,sizeof(RETURN));
+
+	walk_pid(&ret);
+	if(ret.object == NULL)
+		errExit("walk_pid\n");
+
+	cur = head = (X_DIRENT*)ret.object;
+	pids = malloc(sizeof(PID_INFO));
+	ptree = malloc(sizeof(PIDTREE_ENTRY));
+	memset(ptree,0,sizeof(PIDTREE_ENTRY));
+	while (cur != NULL)
+	{
+		if(process_pid(cur->directory,-1,pids) == -1)
+			goto pid_file_continue;
+		if(pids->uid != -1)
+		{
+			place_pid(pids,ptree);
+			pids = malloc(sizeof(PID_INFO));
+		}
+		else
+			memset(pids,0,sizeof(PID_INFO));
+		pid_file_continue:
+		cur = cur->next;
+	}
+	if(uname(&un) != 0)
+		errExit("uname\n");
+
+	ptree->pid = kernel;
+	kernel->uid = -1;
+	kernel->pid = 0;
+	kernel->ppid = -9999;
+	kernel->name = &(un.sysname[0]);
+
+	display_process_tree(ptree);
+
+	exit(EXIT_SUCCESS);
+}
 
 
 int
@@ -368,7 +606,7 @@ __12_1__main(int argc, char *argv[])
 		errExit("User:'%s' not found!!\n", user);
 
 	memset(&ret,0,sizeof(RETURN));
-	walk_pid(&ret,uid);
+	walk_pid(&ret);
 	if(ret.status == 0)
 		output_user_pids(&ret, uid);
 	else
