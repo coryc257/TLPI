@@ -31,5 +31,7 @@ main(int argc, char *argv[])
 	}
 	else if(strcmp(argv[0], "12-1") == 0)
 		__12_1__main(argc-1, argv);
+	else if(strcmp(argv[0], "12-2") == 0)
+		__12_2__main();
 
 }
