@@ -22,6 +22,8 @@ typedef enum LINE_TYPE {
 	PL_PPID,
 	PL_IRRELEVANT
 } LINE_TYPE;
+
+
 typedef struct {
 	int status;
 	char *message;
@@ -49,6 +51,11 @@ typedef struct pidtree_entry {
 	struct pidtree_entry *child;
 
 } PIDTREE_ENTRY;
+
+typedef struct split_path_item {
+	char *item;
+	struct split_path_item *next;
+};
 
 static void
 die_with_error(const RETURN *ret) {
@@ -305,7 +312,7 @@ static void walk_pid(RETURN *ret)
 	while((dir_entry = readdir(dir)) != NULL)
 	{
 		strcpy(list->directory, dir_entry->d_name);
-		printf("%s\n", list->directory);
+		//printf("%s\n", list->directory);
 		/*if(strcmp(list->directory,"3278") == 0)
 		{
 			printf("doing\n");
@@ -619,4 +626,220 @@ __12_1__main(int argc, char *argv[])
 
 
 	return 0;
+}
+
+static void
+fill_path(struct split_path_item *item, int start, int stop, char *str)
+{
+	int size = stop-start+2;
+	int i = 0;
+	item->item = malloc(sizeof(char)*size);
+	for(int j = start; j <= stop; j++)
+	{
+		item->item[i] = str[j];
+		i++;
+	}
+	item->item[size-1] = '\0';
+}
+
+//static int
+int
+split_path(char *path, char ***path_parts, int *count)
+{
+	struct split_path_item *p_head, *p_cur, *swap;
+	int start, stop;
+	char *p, **pp;
+
+	p_head = malloc(sizeof(struct split_path_item));
+	memset(p_head,0,sizeof(struct split_path_item));
+	p_cur = p_head;
+
+	*count = 0;
+	p = path;
+	start = stop = 0;
+	while(*p != '\0')
+	{
+		if(*p == '/')
+		{
+			p++;
+			if(start == 0)
+			{
+				start=++stop;
+				continue;
+			}
+			fill_path(p_cur, start, stop-1, path);
+			p_cur->next = malloc(sizeof(struct split_path_item));
+			p_cur = p_cur->next;
+			p_cur->item = NULL;
+			p_cur->next = NULL;
+			start=++stop;
+			*count = *count + 1;
+			continue;
+		}
+		p++;
+		stop++;
+	}
+	fill_path(p_cur, start, stop-1, path);
+	*count = *count + 1;
+
+	*path_parts = malloc(sizeof(char**)*(*count));
+	pp = *path_parts;
+	p_cur = p_head;
+	while(p_cur != NULL)
+	{
+		swap = p_cur;
+		*pp = swap->item;
+		p_cur = p_cur->next;
+		pp++;
+		free(swap);
+	}
+
+	return 1;
+}
+
+static char*
+resolve_link(char *name)
+{
+	int current_length = 256*10;
+	int link_size = 0;
+	char *buf, *ret_buf;
+
+	buf = malloc(sizeof(char)*current_length);
+	if(buf == NULL)
+		return NULL;
+
+	while((link_size = readlink(name, buf, current_length)) >= current_length)
+	{
+		if(link_size == -1)
+			break;
+		free(buf);
+		current_length = current_length*1.5;
+		buf = malloc(sizeof(char)*current_length);
+		if(buf == NULL)
+			return NULL;
+	}
+
+	if(link_size == -1)
+		return NULL;
+	ret_buf = malloc(sizeof(char*)*link_size+1);
+	if(ret_buf == NULL)
+		return ret_buf;
+	for(int i = 0; i < link_size; i++)
+	{
+		ret_buf[i] = buf[i];
+	}
+	ret_buf[link_size] = '\0';
+	free(buf);
+	return ret_buf;
+}
+
+static int
+check_file__iterate_directories(PID_INFO *pid, char *path_name)
+{
+	int path_part_count;
+	char **path_parts;
+	char pid_fd_path[256*3];
+	char pid_link[256*4];
+	char *resolved_link;
+	DIR *dir;
+	struct dirent *de;
+
+	memset(pid_fd_path,0,256*3);
+	memset(pid_link,0,256*4);
+
+	strcat(pid_fd_path,"/proc/");
+	sprintf(&pid_fd_path[6],"%ld",pid->pid);
+	strcat(pid_fd_path,"/fd");
+
+	dir = opendir(pid_fd_path);
+	if(dir == NULL)
+		return -1;
+
+	while((de = readdir(dir)) != NULL)
+	{
+		sprintf(pid_link, "/proc/%ld/fd/%s", pid->pid, de->d_name);
+		resolved_link = resolve_link(pid_link);
+		if(resolved_link != NULL)
+		{
+			if(strcmp(path_name,resolved_link) == 0)
+			{
+				printf("PID:%ld Has: '%s' open\n",pid->pid, resolved_link);
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int
+check_file(char *process_folder, char *path_name, PID_INFO **out)
+{
+
+	PID_INFO *pid;
+
+	pid = malloc(sizeof(PID_INFO));
+	memset(pid,0,sizeof(PID_INFO));
+
+
+
+	if(process_pid(process_folder,-1,pid) == 1)
+		return -1;
+
+	if(pid->name != NULL)
+	{
+		if(check_file__iterate_directories(pid,path_name) == 1)
+		{
+
+		}
+	}
+}
+
+static void
+search_for_open_files(RETURN *ret, char *path)
+{
+	X_DIRENT *d_head, *cur;
+	PID_INFO *pid;
+	char **file_path;
+	int file_parts;
+
+
+	split_path(path, &file_path,&file_parts);
+	// Walk PID directories
+	cur = d_head = (X_DIRENT*)ret->object;
+	if(d_head == NULL)
+		errExit("no PIDS found\n");
+
+	while(cur != NULL)
+	{
+		pid = NULL;
+		if(check_file(cur->directory,path,&pid) == 1)
+		{
+
+		}
+		cur = cur->next;
+	}
+
+
+	// Check For File Handle Open
+
+	// Match PIDS
+
+	/// >>>> output in different function
+}
+
+int
+__12_3__main(int argc, char *argv[0])
+{
+	RETURN ret;
+
+	if(argc != 2)
+		usageErr("%s <path>\n", argv[0]);
+
+	memset(&ret,0,sizeof(RETURN));
+	walk_pid(&ret);
+
+	if(ret.status != 0)
+		errExit("walk_pid");
+
+	search_for_open_files(&ret, argv[1]);
 }

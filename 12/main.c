@@ -33,5 +33,10 @@ main(int argc, char *argv[])
 		__12_1__main(argc-1, argv);
 	else if(strcmp(argv[0], "12-2") == 0)
 		__12_2__main();
+	else if(strcmp(argv[0], "12-3") == 0)
+		__12_3__main(argc-1, argv);
+	/*char **path_items;
+	int path_item_count;
+	split_path("/var/run/log.txt",&path_items,&path_item_count);*/
 
 }
