@@ -16,6 +16,8 @@
 										!(g == fg && pg & fm) && \
 										!(fm & po))
 
+
+
 int
 effective_access (char *file, int aflags)
 {

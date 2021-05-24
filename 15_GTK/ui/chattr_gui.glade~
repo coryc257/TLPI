@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.38.2 -->
+<interface>
+  <requires lib="gtk+" version="3.22"/>
+  <object class="GtkWindow" id="window_main">
+    <property name="can-focus">False</property>
+    <child>
+      <object class="GtkLayout" id="chattr_gui">
+        <property name="width-request">520</property>
+        <property name="height-request">580</property>
+        <property name="visible">True</property>
+        <property name="can-focus">False</property>
+        <child>
+          <object class="GtkCheckButton" id="ck_a">
+            <property name="label" translatable="yes">Append Only</property>
+            <property name="width-request">110</property>
+            <property name="height-request">23</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">120</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_A">
+            <property name="label" translatable="yes">No Atime Updates</property>
+            <property name="width-request">107</property>
+            <property name="height-request">23</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">160</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_F">
+            <property name="label" translatable="yes">Case Insensitive Directory Lookups</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">420</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_c">
+            <property name="label" translatable="yes">Compressed</property>
+            <property name="width-request">107</property>
+            <property name="height-request">24</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">200</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_D">
+            <property name="label" translatable="yes">Synchronous Directory Updates</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">329</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_d">
+            <property name="label" translatable="yes">No Dump</property>
+            <property name="width-request">107</property>
+            <property name="height-request">23</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">284</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_e">
+            <property name="label" translatable="yes">Extent Format</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">375</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_i">
+            <property name="label" translatable="yes">Immutable</property>
+            <property name="width-request">100</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">420</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_C">
+            <property name="label" translatable="yes">No Copy On Write</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">35</property>
+            <property name="y">240</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_s">
+            <property name="label" translatable="yes">Secure Deletion</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">299</property>
+            <property name="y">200</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_u">
+            <property name="label" translatable="yes">Undeletable</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">375</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_S">
+            <property name="label" translatable="yes">Synchronous Updates</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">240</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_t">
+            <property name="label" translatable="yes">No Tail Merging</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">280</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_T">
+            <property name="label" translatable="yes">Top of Directory
+      Hierarchy</property>
+            <property name="width-request">107</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">320</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_P">
+            <property name="label" translatable="yes">Project Hierarchy</property>
+            <property name="width-request">100</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">160</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkCheckButton" id="ck_j">
+            <property name="label" translatable="yes">Data Journaling</property>
+            <property name="width-request">100</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">False</property>
+            <property name="draw-indicator">True</property>
+          </object>
+          <packing>
+            <property name="x">300</property>
+            <property name="y">120</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkEntry" id="file_name_display">
+            <property name="width-request">250</property>
+            <property name="height-request">34</property>
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="editable">False</property>
+          </object>
+          <packing>
+            <property name="x">165</property>
+            <property name="y">44</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkLabel">
+            <property name="name">file_label</property>
+            <property name="width-request">100</property>
+            <property name="height-request">20</property>
+            <property name="visible">True</property>
+            <property name="can-focus">False</property>
+            <property name="label" translatable="yes">File Name:</property>
+          </object>
+          <packing>
+            <property name="x">58</property>
+            <property name="y">52</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="bt_cancel">
+            <property name="label" translatable="yes">Cancel</property>
+            <property name="width-request">100</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+          </object>
+          <packing>
+            <property name="x">170</property>
+            <property name="y">499</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="bt_save">
+            <property name="label" translatable="yes">Save</property>
+            <property name="width-request">100</property>
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="receives-default">True</property>
+          </object>
+          <packing>
+            <property name="x">315</property>
+            <property name="y">499</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
