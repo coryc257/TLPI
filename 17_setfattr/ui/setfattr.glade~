@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Generated with glade 3.38.2 -->
 <interface>
-  <requires lib="gtk+" version="3.24"/>
+  <requires lib="gtk+" version="3.22"/>
   <object class="GtkWindow" id="window_main">
     <property name="name">000000000000000000000000000000000000000000000000000000</property>
     <property name="width-request">640</property>
@@ -13,23 +13,36 @@
         <property name="visible">True</property>
         <property name="can-focus">True</property>
         <property name="hexpand">True</property>
-        <property name="vexpand">True</property>
         <property name="position">200</property>
         <property name="position-set">True</property>
         <child>
-          <object class="GtkListBox" id="left_list_box">
+          <object class="GtkScrolledWindow">
             <property name="visible">True</property>
-            <property name="can-focus">False</property>
+            <property name="can-focus">True</property>
+            <property name="vscrollbar-policy">always</property>
+            <property name="shadow-type">in</property>
             <child>
-              <object class="GtkListBoxRow" id="save_row">
+              <object class="GtkViewport">
                 <property name="visible">True</property>
-                <property name="can-focus">True</property>
+                <property name="can-focus">False</property>
                 <child>
-                  <object class="GtkButton" id="btn_new_attr">
-                    <property name="label" translatable="yes">New</property>
+                  <object class="GtkListBox" id="left_list_box">
                     <property name="visible">True</property>
-                    <property name="can-focus">True</property>
-                    <property name="receives-default">True</property>
+                    <property name="can-focus">False</property>
+                    <child>
+                      <object class="GtkListBoxRow" id="save_row">
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <child>
+                          <object class="GtkButton" id="btn_new_attr">
+                            <property name="label" translatable="yes">New</property>
+                            <property name="visible">True</property>
+                            <property name="can-focus">True</property>
+                            <property name="receives-default">True</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
@@ -52,8 +65,8 @@
                 <property name="can-focus">True</property>
               </object>
               <packing>
-                <property name="x">137</property>
-                <property name="y">85</property>
+                <property name="x">117</property>
+                <property name="y">69</property>
               </packing>
             </child>
             <child>
@@ -64,8 +77,8 @@
                 <property name="can-focus">True</property>
               </object>
               <packing>
-                <property name="x">137</property>
-                <property name="y">142</property>
+                <property name="x">117</property>
+                <property name="y">174</property>
               </packing>
             </child>
             <child>
@@ -77,7 +90,7 @@
               </object>
               <packing>
                 <property name="x">183</property>
-                <property name="y">190</property>
+                <property name="y">220</property>
               </packing>
             </child>
             <child>
@@ -89,7 +102,7 @@
               </object>
               <packing>
                 <property name="x">314</property>
-                <property name="y">190</property>
+                <property name="y">220</property>
               </packing>
             </child>
             <child>
@@ -101,8 +114,8 @@
                 <property name="label" translatable="yes">Attribute Name:</property>
               </object>
               <packing>
-                <property name="x">95</property>
-                <property name="y">63</property>
+                <property name="x">15</property>
+                <property name="y">25</property>
               </packing>
             </child>
             <child>
@@ -114,8 +127,8 @@
                 <property name="label" translatable="yes">Attribute Value:</property>
               </object>
               <packing>
-                <property name="x">95</property>
-                <property name="y">120</property>
+                <property name="x">15</property>
+                <property name="y">130</property>
               </packing>
             </child>
           </object>

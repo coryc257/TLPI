@@ -16,33 +16,19 @@
         <property name="position">200</property>
         <property name="position-set">True</property>
         <child>
-          <object class="GtkScrolledWindow">
+          <object class="GtkListBox" id="left_list_box">
             <property name="visible">True</property>
-            <property name="can-focus">True</property>
-            <property name="vscrollbar-policy">always</property>
-            <property name="shadow-type">in</property>
+            <property name="can-focus">False</property>
             <child>
-              <object class="GtkViewport">
+              <object class="GtkListBoxRow" id="save_row">
                 <property name="visible">True</property>
-                <property name="can-focus">False</property>
+                <property name="can-focus">True</property>
                 <child>
-                  <object class="GtkListBox" id="left_list_box">
+                  <object class="GtkButton" id="btn_new_attr">
+                    <property name="label" translatable="yes">New</property>
                     <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <child>
-                      <object class="GtkListBoxRow" id="save_row">
-                        <property name="visible">True</property>
-                        <property name="can-focus">True</property>
-                        <child>
-                          <object class="GtkButton" id="btn_new_attr">
-                            <property name="label" translatable="yes">New</property>
-                            <property name="visible">True</property>
-                            <property name="can-focus">True</property>
-                            <property name="receives-default">True</property>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
+                    <property name="can-focus">True</property>
+                    <property name="receives-default">True</property>
                   </object>
                 </child>
               </object>
