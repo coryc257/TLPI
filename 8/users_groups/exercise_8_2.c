@@ -8,7 +8,7 @@ replicate_char(char **p)
 {
 	char *x;
 	size_t len;
-	x = my_malloc((len = (strlen(*p)+1)));
+	x = malloc((len = (strlen(*p)+1)));
 	for(int j = 0; j < len; j++)
 	{
 		x[j]=(*p)[j];
@@ -21,7 +21,7 @@ replicate_passwd(struct passwd **pwd, const struct passwd *cur)
 {
 
 	char *f, *t;
-	*pwd = my_malloc(sizeof(struct passwd));
+	*pwd = malloc(sizeof(struct passwd));
 	t = (char*)(*pwd);
 	f = (char*)cur;
 	for(int j = 0; j < sizeof(struct passwd); j++)

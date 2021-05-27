@@ -24,7 +24,7 @@ __check_password__name(int argc, char **argv)
 	if(lnmax == -1)
 		lnmax = 256;
 
-	username = my_malloc(lnmax);
+	username = malloc(lnmax);
 	if(username == NULL)
 		errExit("malloc");
 
