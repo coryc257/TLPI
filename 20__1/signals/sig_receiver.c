@@ -10,7 +10,9 @@ static void
 handler(int sig)
 {
 	if (sig == SIGINT)
+	{
 		gotSigint = 1;
+	}
 	else
 		sigCnt[sig]++;
 }
@@ -20,11 +22,21 @@ __sig_receiver__main(int argc, char *argv[])
 {
 	int n, numSecs;
 	sigset_t pendingMask, blockingMask, emptyMask;
+	struct sigaction saiga;
+
+	if (sigemptyset(&emptyMask) == -1)
+		errExit("sigemptyset\n");
+	saiga.sa_handler = handler;
+	saiga.sa_flags = 0;
+	saiga.sa_mask = emptyMask;
 
 	printf("%s: PID is %ld\n", argv[0], (long) getpid());
 
 	for (n = 1; n < NSIG; n++)
-		(void) signal(n, handler);
+	{
+		sigaction(n,&saiga,NULL);
+		//(void) signal(n, handler);
+	}
 
 	if (argc > 1) {
 		numSecs = getInt(argv[1],0,NULL);

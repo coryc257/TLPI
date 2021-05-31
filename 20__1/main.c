@@ -15,6 +15,8 @@ main(int argc, char *argv[])
 	//__intquit__main(argc,argv);
 	//__t_kill__main(argc,argv);
 	//printSigMask(stdout, "Test?");
-	__sig_sender__main(argc,argv);
+	//__sig_sender__main(argc,argv);
 	//__sig_receiver__main(argc, argv);
+	//__20_2__main(argc,argv);
+	__20_3_b__main(argc,argv);
 }
