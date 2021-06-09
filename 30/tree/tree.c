@@ -121,11 +121,6 @@ new_tree_node(char *key, void *value, TREE_ITEM **new)
 	return 0;
 }
 
-typedef void* (*TF_TRAMPOLINE)(TREE_ITEM **item, TREE_ITEM *new, int *status);
-
-typedef TF_TRAMPOLINE (*X_CALLBACK)(TREE_ITEM **item, TREE_ITEM *new, int *status);
-
-
 static TF_TRAMPOLINE
 t_emplace(TREE_ITEM **item, TREE_ITEM *new, int *status)
 {
@@ -298,4 +293,308 @@ add(TREE *tree, char *key, void *value)
 	}
 
 	return emplace(tree, key, value);
+}
+
+Boolean peek(char *key, char *key2)
+{
+	return (strcmp(key,key2) == 0 ? TRUE : FALSE);
+}
+
+
+static T_LOOKUP *
+t_sub(T_LOOKUP *look)
+{
+	int cmp;
+	TREE_ITEM *swap;
+	cmp = strcmp(look->key,look->node->key);
+	if (cmp > 0)
+		cmp = 1;
+	else if (cmp < 0)
+		cmp = -1;
+
+	switch (cmp) {
+	case 0:
+		look->value = look->node->value;
+		pthread_mutex_unlock(look->node->lock_look);
+		look->callback = NULL;
+		break;
+	case 1:
+		pthread_mutex_lock(look->node->lock_right);
+		if (look->node->right == NULL)
+		{
+			look->callback = NULL;
+			pthread_mutex_unlock(look->node->lock_right);
+			pthread_mutex_unlock(look->node->lock_look);
+			break;
+		}
+		swap = look->node->right;
+		pthread_mutex_unlock(look->node->lock_look);
+		pthread_mutex_lock(swap->lock_look);
+		pthread_mutex_unlock(look->node->lock_right);
+		look->node = swap;
+		break;
+	case -1:
+		pthread_mutex_lock(look->node->lock_left);
+		if (look->node->left == NULL)
+		{
+			look->callback = NULL;
+			pthread_mutex_unlock(look->node->lock_left);
+			pthread_mutex_unlock(look->node->lock_look);
+			break;
+		}
+		swap = look->node->left;
+		pthread_mutex_unlock(look->node->lock_look);
+		pthread_mutex_lock(swap->lock_look);
+		pthread_mutex_unlock(look->node->lock_left);
+		look->node = swap;
+		break;
+	}
+	return look;
+}
+
+static T_LOOKUP *
+node_hop(T_LOOKUP *node)
+{
+	LOCK_LIST *item;
+	item = malloc(sizeof(LOCK_LIST));
+	item->lock = node->node->lock_right;
+
+	if(node->mutex_chain != NULL)
+		item->next = node->mutex_chain;
+	node->mutex_chain = item;
+
+	pthread_mutex_lock(item->lock);
+
+	if (node->node->right == NULL)
+	{
+		node->node->right = node->emplacement;
+		node->callback = NULL;
+		return node;
+	}
+	else
+	{
+		item = malloc(sizeof(LOCK_LIST));
+		item->lock = node->node->right->lock_look;
+		item->next = node->mutex_chain;
+		node->mutex_chain = item;
+		pthread_mutex_lock(item->lock);
+		node->node = node->node->right;
+		return node;
+	}
+}
+
+static TREE_ITEM *
+node_delete(TREE_ITEM *node)
+{
+	int cmp;
+	T_LOOKUP *look;
+	LOCK_LIST *lk, *sk;
+	pthread_mutex_lock(node->lock_left);
+	pthread_mutex_lock(node->lock_right);
+	// WHY? because I CAN
+	// Once I lock them once, nobody else
+	// can because I'm locking the looker
+	pthread_mutex_unlock(node->lock_left);
+	pthread_mutex_unlock(node->lock_right);
+	if (node->left != NULL)
+	{
+		pthread_mutex_lock(node->left->lock_look);
+	}
+	if (node->right != NULL)
+	{
+		pthread_mutex_lock(node->right->lock_look);
+	}
+
+	if (node->left == NULL && node->right != NULL)
+	{
+		pthread_mutex_unlock(node->right->lock_look);
+		return node->right;
+	}
+
+	if (node->right == NULL && node->left != NULL)
+	{
+		pthread_mutex_unlock(node->left->lock_look);
+		return node->left;
+	}
+
+	if (node->right == NULL && node->left == NULL)
+		goto node_delete_out;
+
+	look = malloc(sizeof(T_LOOKUP));
+	look->callback = &node_hop;
+	look->emplacement = node->right;
+	look->node = node->left;
+
+	while (look->callback != NULL && (look == look->callback(look))){}
+	if (look->mutex_chain != NULL) {
+		lk = look->mutex_chain;
+		while(lk) {
+			pthread_mutex_unlock(lk->lock);
+			sk = lk;
+			lk = lk->next;
+			free(sk);
+		}
+	}
+	node_delete_out:
+	if (node->left != NULL)
+		pthread_mutex_unlock(node->left->lock_look);
+	if (node->right != NULL)
+		pthread_mutex_unlock(node->right->lock_look);
+	return node->left;
+}
+
+static T_LOOKUP *
+d_sub(T_LOOKUP *look)
+{
+	int cmp;
+	TREE_ITEM *swap;
+	cmp = strcmp(look->key,look->node->key);
+	if (cmp > 0)
+		cmp = 1;
+	else if (cmp < 0)
+		cmp = -1;
+
+	switch (cmp) {
+	case 0:
+		*(look->insertion_point) = node_delete(look->node);
+		pthread_mutex_unlock(look->node->lock_look);
+		if (look->barrier != NULL)
+		{
+			pthread_mutex_unlock(look->barrier);
+			look->barrier = NULL;
+		}
+		look->callback = NULL;
+		break;
+	case 1:
+		pthread_mutex_lock(look->node->lock_right);
+		if (look->node->right == NULL)
+		{
+			look->callback = NULL;
+			pthread_mutex_unlock(look->node->lock_right);
+			pthread_mutex_unlock(look->node->lock_look);
+			break;
+		}
+		swap = look->node->right;
+		pthread_mutex_lock(swap->lock_look);
+		if (look->barrier != NULL)
+			pthread_mutex_unlock(look->barrier);
+		if (peek(swap->key,look->key)==FALSE) {
+			look->barrier = NULL;
+			pthread_mutex_unlock(look->node->lock_right);
+		} else {
+			look->barrier = look->node->lock_right;
+			look->insertion_point = (void**)&(look->node->right);
+		}
+		pthread_mutex_unlock(look->node->lock_look);
+		look->node = swap;
+		break;
+	case -1:
+		pthread_mutex_lock(look->node->lock_left);
+		if (look->node->left == NULL)
+		{
+			look->callback = NULL;
+			pthread_mutex_unlock(look->node->lock_left);
+			pthread_mutex_unlock(look->node->lock_look);
+			break;
+		}
+		swap = look->node->left;
+		pthread_mutex_lock(swap->lock_look);
+		if (look->barrier != NULL)
+			pthread_mutex_unlock(look->barrier);
+		if (peek(look->key,swap->key)==FALSE) {
+			look->barrier = NULL;
+			pthread_mutex_unlock(look->node->lock_left);
+		} else {
+			look->barrier = look->node->lock_left;
+			look->insertion_point = (void**)&(look->node->left);
+		}
+		pthread_mutex_unlock(look->node->lock_look);
+		look->node = swap;
+		break;
+	}
+	return look;
+}
+
+
+
+
+
+static __thread int look_type;
+static T_LOOKUP *
+t_lookup(T_LOOKUP *look)
+{
+	pthread_mutex_lock(look->tree->root_lock);
+	if (look->tree->base == NULL)
+	{
+		look->callback = NULL;
+		pthread_mutex_unlock(look->tree->root_lock);
+		return look;
+	}
+	pthread_mutex_lock(look->tree->base->lock_look);
+	look->node = look->tree->base;
+
+	switch (look_type) {
+	case 0:
+		look->callback = &t_sub;
+		break;
+	case 1:
+		if (peek(look->key,look->tree->base->key)==TRUE)
+		{
+			look->tree->base = node_delete(look->tree->base);
+			pthread_mutex_unlock(look->tree->base->lock_look);
+			pthread_mutex_unlock(look->tree->root_lock);
+			look->callback = NULL;
+			return look;
+		}
+		look->callback = &d_sub;
+		break;
+	}
+
+	pthread_mutex_unlock(look->tree->root_lock);
+	return look;
+}
+static T_LOOKUP*
+generate_lookup(T_LOOKUP *look, char *key, TREE *tree)
+{
+	look = malloc(sizeof(T_LOOKUP));
+	look->key = strdup(key);
+	look->value = NULL;
+	look->callback = &t_lookup;
+	look->tree = tree;
+	look->mutex_chain = NULL;
+	look->barrier = NULL;
+	look->insertion_point = NULL;
+	return look;
+}
+
+Boolean
+lookup(TREE *tree, char *key, void **value)
+{
+	T_LOOKUP *look;
+	look = generate_lookup(look, key, tree);
+	look_type = 0;
+
+	while (look->callback && (look = look->callback(look)) != NULL){}
+
+	if (look->value != NULL)
+	{
+		*value = look->value;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void
+delete(TREE *tree, char *key)
+{
+	T_LOOKUP *look;
+	look = generate_lookup(look, key, tree);
+	look_type = 1;
+	while (look->callback && (look = look->callback(look)) != NULL){}
+
+	/*if (look->value != NULL)
+	{
+		look->callback =
+	}*/
 }
