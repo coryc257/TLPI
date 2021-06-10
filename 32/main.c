@@ -31,10 +31,19 @@ static int items[LOGIC_LOCKS];
 	if(--sync >= LOGIC_LOCKS || sync < 0)
 		return -1;
 	pthread_mutex_lock(&logic_lock_mtx);
-	if (action == 0)
+	switch (action) {
+	case 0:
 		items[sync] = 1;
-	else if (action == 1)
+		break;
+	case 1:
 		ret = items[sync];
+		break;
+	case -1:
+		items[sync] = -1;
+		break;
+	}
+
+
 	pthread_mutex_unlock(&logic_lock_mtx);
 	return ret;
 }
@@ -57,8 +66,12 @@ sig_watcher(void *arg)
 
 	sigwait(&open,&status);
 	pthread_mutex_lock(&output);
+	if (param->sync == 2)
+		sleep(2);
 	printf("(%d)GOT SIGNAL:%d\n", param->sync, status);
 	pthread_mutex_unlock(&output);
+
+	logic_lock(-1,param->sync);
 	return NULL;
 }
 
@@ -73,13 +86,13 @@ main (int argc, char *argv[])
 	param->signal = SIGUSR1;
 	param->sync = 1;
 	pthread_create(&t1,NULL,sig_watcher,(void*)param);
-	//pthread_detach(t1);
+	pthread_detach(t1);
 
 	param = malloc(sizeof(sig_thread_param));
 	param->signal = SIGUSR2;
 	param->sync = 2;
 	pthread_create(&t2,NULL,sig_watcher,(void*)param);
-	//pthread_detach(t2);
+	pthread_detach(t2);
 
 	for (;;) {
 		int total_ready = 0;
@@ -96,7 +109,22 @@ main (int argc, char *argv[])
 	pthread_kill(t2,SIGUSR1); // This won't trigger
 	pthread_kill(t2,SIGUSR2);
 
-	pthread_join(t1,NULL);
-	pthread_join(t2,NULL);
+	for (;;) {
+		int total_done = 0;
+		for (int j = 0; j < READY_COUNT; j++) {
+			if (logic_lock(1,j+1) == -1)
+			{
+				total_done++;
+				printf("Thread(%d):Finished\n", j+1);
+			}
+			else
+			{
+				printf("Thread(%d):Still Running\n", j+1);
+			}
+		}
+		if (total_done == READY_COUNT)
+			break;
+		sleep(1);
+	}
 	printf("ALL DONE\n");
 }
