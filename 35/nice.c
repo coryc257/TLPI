@@ -11,33 +11,10 @@
 #include <getopt.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include "exec_container.h"
 extern char *optarg;
 extern int optind, opterr, optopt;
 
-typedef struct exec_container {
-	char **args;
-	char *exe;
-} EXEC_CONTAINER;
-
-static void
-construct_args(int argc, char**args, EXEC_CONTAINER *ec)
-{
-	char **xargs, **cargs;
-	ec->exe = strdup(args[0]);
-	if (argc > 0) {
-		ec->args = malloc(sizeof(char*)*(argc+1));
-		xargs = ec->args;
-		cargs = args;
-		for (int j = 0; j < argc; j++) {
-			*xargs = strdup(*cargs);
-			xargs++;
-			cargs++;
-		}
-		*cargs = NULL;
-	} else {
-		ec->args = NULL;
-	}
-}
 
 static void
 run(EXEC_CONTAINER *ec, int nice_value)

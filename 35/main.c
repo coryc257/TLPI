@@ -9,5 +9,6 @@
 int
 main(int argc, char *argv[])
 {
-	nice__main(argc,argv);
+	//nice__main(argc,argv);
+	rtsched__main(argc,argv);
 }
