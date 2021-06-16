@@ -58,7 +58,7 @@ x35_c__main(int argc, char *argv[])
 
 	times(&start);
 
-	while (elapsed_seconds < 3) {
+	while (elapsed_seconds < 5) {
 		times(&current);
 
 		computed = (current.tms_utime - start.tms_utime) + (current.tms_stime - start.tms_stime);

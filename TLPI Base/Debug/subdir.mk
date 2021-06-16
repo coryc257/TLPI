@@ -5,16 +5,19 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../error_functions.c \
+../exec_container.c \
 ../get_num.c \
 ../main.c 
 
 OBJS += \
 ./error_functions.o \
+./exec_container.o \
 ./get_num.o \
 ./main.o 
 
 C_DEPS += \
 ./error_functions.d \
+./exec_container.d \
 ./get_num.d \
 ./main.d 
 
