@@ -7,19 +7,22 @@ C_SRCS += \
 ../error_functions.c \
 ../exec_container.c \
 ../get_num.c \
-../main.c 
+../main.c \
+../ugid_functions.c 
 
 OBJS += \
 ./error_functions.o \
 ./exec_container.o \
 ./get_num.o \
-./main.o 
+./main.o \
+./ugid_functions.o 
 
 C_DEPS += \
 ./error_functions.d \
 ./exec_container.d \
 ./get_num.d \
-./main.d 
+./main.d \
+./ugid_functions.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
