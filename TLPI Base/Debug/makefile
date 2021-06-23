@@ -19,13 +19,27 @@ endif
 
 -include ../makefile.defs
 
+OPTIONAL_TOOL_DEPS := \
+$(wildcard ../makefile.defs) \
+$(wildcard ../makefile.init) \
+$(wildcard ../makefile.targets) \
+
+
+BUILD_ARTIFACT_NAME := TLPI Base
+BUILD_ARTIFACT_EXTENSION :=
+BUILD_ARTIFACT_PREFIX :=
+BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
+
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: TLPI\ Base
+all: main-build
+
+# Main-build Target
+main-build: TLPI\ Base
 
 # Tool invocations
-TLPI\ Base: $(OBJS) $(USER_OBJS)
+TLPI\ Base: $(OBJS) $(USER_OBJS) makefile objects.mk $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross GCC Linker'
 	gcc  -o "TLPI Base" $(OBJS) $(USER_OBJS) $(LIBS)

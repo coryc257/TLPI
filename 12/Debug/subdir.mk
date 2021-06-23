@@ -14,10 +14,10 @@ C_DEPS += \
 
 
 # Each subdirectory must supply rules for building sources it contributes
-%.o: ../%.c
+%.o: ../%.c subdir.mk
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	gcc -I"/home/cory/tlpi_workspace/TLPI/TLPI Base/lib" -I"/home/cory/tlpi_workspace/TLPI/8/lib" -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
+	gcc -I"/home/cory/tlpi_workspace/TLPI/TLPI Base/lib" -I"/home/cory/tlpi_workspace/TLPI/8/lib" -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$@" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

@@ -17,7 +17,7 @@ main (int argc, char *argv[])
 		printf("Username:%s\n", user);*/
 	//utmpx_login(argc, argv);
 
-
+	/*
 	struct utmp x;
 	strcpy(x.ut_name, "grug");
 	strcpy(x.ut_user, "grug");
@@ -25,7 +25,8 @@ main (int argc, char *argv[])
 	if(my_logout(&x) == 1)
 		printf("SUCCESS\n");
 	my_logwtmp("pts/43", "grugalug", "theinternets");
-
+	*/
 
 	//dump_utmpx(argc,argv);
+	who();
 }
