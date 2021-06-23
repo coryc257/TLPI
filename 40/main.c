@@ -19,7 +19,13 @@ main (int argc, char *argv[])
 
 
 	struct utmp x;
-	strcpy(x.ut_user, "xory");
+	strcpy(x.ut_name, "grug");
+	strcpy(x.ut_user, "grug");
 	my_login(&x);
+	if(my_logout(&x) == 1)
+		printf("SUCCESS\n");
+	my_logwtmp("pts/43", "grugalug", "theinternets");
 
+
+	//dump_utmpx(argc,argv);
 }
