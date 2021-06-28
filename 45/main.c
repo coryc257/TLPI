@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ipc.h>
+#include <assert.h>
 
 #ifndef TEST_FILE_451
 #define TEST_FILE_451 "/home/cory/tlpi_workspace/TLPI/45_1_file"
@@ -38,13 +39,13 @@ my_ftok(const char *pathname, int proj)
 	ps_m = 8*sizeof(int) - 8;
 	is_m = 8*sizeof(unsigned long int) - 16;
 	ds_m = 8*sizeof(unsigned long int) - 8;
-	pshift = ((unsigned long long)pshift << ps_m);
-	dshift_out = ((unsigned long long)dshift << ds_m) >> ds_m << 16;
+	pshift = (int)((unsigned long long)pshift << ps_m);
+	dshift_out = (int)(unsigned long long)(((unsigned long long)dshift << ds_m) >> ds_m << 16);
 	ishift_out = (int)(((unsigned long long)ishift << is_m) >> is_m);
-
+			/*[PPPPPPPP:8][DDDDDDDD:8][IIIIIIIIIIIIIIII:16]*/
 	ret = pshift | dshift_out | ishift_out;
 
-	printf("%x\n",ret);
+	printf("0x%x\n",ret);
 	return ret;
 }
 
@@ -52,5 +53,6 @@ int
 main(int argc, char *argv[])
 {
 	x45_1();
-	my_ftok(TEST_FILE_451,2147483647);
+	//my_ftok(TEST_FILE_451,2147483647);
+	assert(ftok(TEST_FILE_451,2147483647)==my_ftok(TEST_FILE_451,2147483647));
 }
