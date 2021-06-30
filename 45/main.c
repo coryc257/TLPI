@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <sys/ipc.h>
 #include <assert.h>
+//#include <i
 
 #ifndef TEST_FILE_451
 #define TEST_FILE_451 "/home/cory/tlpi_workspace/TLPI/45_1_file"
@@ -52,6 +53,7 @@ my_ftok(const char *pathname, int proj)
 int
 main(int argc, char *argv[])
 {
+	int x = IPCMNI;
 	x45_1();
 	//my_ftok(TEST_FILE_451,2147483647);
 	assert(ftok(TEST_FILE_451,2147483647)==my_ftok(TEST_FILE_451,2147483647));

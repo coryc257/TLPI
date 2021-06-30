@@ -1,4 +1,3 @@
-/home/cory/tlpi_workspace/TLPI/TLPI Base/Debug/exec_container.o: \
- /home/cory/tlpi_workspace/TLPI/TLPI\ Base/Debug/../exec_container.c \
- /home/cory/tlpi_workspace/TLPI/TLPI\ Base/Debug/../lib/exec_container.h
-/home/cory/tlpi_workspace/TLPI/TLPI\ Base/Debug/../lib/exec_container.h:
+exec_container.o: ../exec_container.c ../lib/exec_container.h
+
+../lib/exec_container.h:
