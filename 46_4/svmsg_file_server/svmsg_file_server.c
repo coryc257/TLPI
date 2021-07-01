@@ -7,6 +7,21 @@
 
 
 #include "../lib/svmsg_file.h"
+#include "daemonize.h"
+#include <stdarg.h>
+#include <syslog.h>
+
+static int serverId;
+static void
+catch_fire(const char *message_format, ...)
+{
+	va_list list;
+	openlog("svmsg_file_server", LOG_PID | LOG_PERROR, LOG_USER);
+	va_start(list,message_format);
+	vsyslog(LOG_USER | LOG_ERR, message_format, list);
+	va_end(list);
+	closelog();
+}
 
 static void
 grimReaper(int sig)
@@ -19,28 +34,71 @@ grimReaper(int sig)
 	errno = savedErrno;
 }
 
+static int __timeout_handler__clientId;
+static void
+timeout_handler(int sig)
+{
+	catch_fire("[serveRequest->timeout_handler][timeout for clientId(%d)", __timeout_handler__clientId);
+	msgctl(__timeout_handler__clientId, IPC_RMID, NULL);
+	signal(sig,SIG_DFL);
+	kill(getpid(),sig);
+}
+
+
 static void
 serveRequest(const struct requestMsg *req)
 {
 	int fd;
 	ssize_t numRead;
 	struct responseMsg resp;
+	struct sigaction act;
+	sigfillset(&act.sa_mask);
+	act.sa_flags = 0;
+	act.sa_handler = timeout_handler;
+	__timeout_handler__clientId = req->clientId;
+	sigaction(SIGALRM,&act,NULL);
 
 	fd = open(req->pathname, O_RDONLY);
 	if (fd == -1) {
+		catch_fire("[serveRequest][open('%s',O_RDONLY)]", req->pathname);
 		resp.mtype = RESP_MT_FAILURE;
 		snprintf(resp.data, sizeof(resp.data), "%s", "Couldn't open");
-		msgsnd(req->clientId, &resp, strlen(resp.data)+1,0);
-		exit(EXIT_FAILURE);
+		// TAG:msgsnd0
+		alarm(10);
+		if (msgsnd(req->clientId, &resp, strlen(resp.data)+1,0) == -1) {
+			catch_fire("[serveRequest::msgsnd0][msgsnd(%d, '%s', %d, %d)]", req->clientId, "irrelevant", strlen(resp.data)+1, 0);
+		}
+		alarm(0);
+		close(fd);
+		//exit(EXIT_FAILURE);
+		return;
 	}
 
 	resp.mtype = RESP_MT_DATA;
-	while ((numRead = read(fd, resp.data, RESP_MSG_SIZE)) > 0)
-		if (msgsnd(req->clientId,&resp,numRead,0) == -1)
+	while ((numRead = read(fd, resp.data, RESP_MSG_SIZE)) > 0) {
+		// TAG:msgsnd1
+		alarm(10);
+		if (msgsnd(req->clientId,&resp,numRead,0) == -1) {
+			alarm(0);
+			catch_fire("[serveRequest::msgsnd1][msgsnd(%d, '%s', %d, %d)]", req->clientId, "irrelevant", numRead, 0);
 			break;
+		}
+		alarm(0);
+	}
+
+	if (numRead == -1) {
+		catch_fire("[serveRequest][read(%d, '%s', %d)]", fd, "irrelevant", RESP_MSG_SIZE);
+	}
 
 	resp.mtype = RESP_MT_END;
-	msgsnd(req->clientId, &resp, 0, 0);
+	// TAG:msgssnd2
+	alarm(10);
+	if (msgsnd(req->clientId, &resp, 0, 0) == -1) {
+		alarm(0);
+		catch_fire("[serveRequest::msgsnd2][msgsnd(%d, '%s', %d, %d)]", req->clientId, "irrelevant", 0, 0);
+	}
+	alarm(0);
+	close(fd);
 }
 
 static void
@@ -72,7 +130,13 @@ write_well_known_file(int serverId)
 static void
 default_handler(int sig)
 {
-	exit(EXIT_SUCCESS);
+	if (sig == SIGTERM || sig == SIGINT) {
+		msgctl(serverId, IPC_RMID, NULL);
+		exit_handler();
+		signal(sig,SIG_DFL);
+		kill(getpid(),sig);
+	}
+	//exit(EXIT_SUCCESS);
 }
 
 int
@@ -82,10 +146,10 @@ svmsg_file_server(int argc, char *argv[])
 	struct msqid_ds id;
 	pid_t pid;
 	ssize_t msgLen;
-	int serverId;
+
 	struct sigaction sa;
 	// DAEMONIZE
-	if (fork() != 0 ) {setsid(); if (fork() != 0) { _exit(EXIT_SUCCESS);}} else {_exit(EXIT_SUCCESS);}
+	DAEMONIZE(0);
 
 	atexit(exit_handler);
 	serverId = msgget(IPC_PRIVATE, IPC_CREAT | IPC_EXCL |

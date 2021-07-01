@@ -4,6 +4,7 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../daemonize.c \
 ../error_functions.c \
 ../exec_container.c \
 ../get_num.c \
@@ -11,6 +12,7 @@ C_SRCS += \
 ../ugid_functions.c 
 
 OBJS += \
+./daemonize.o \
 ./error_functions.o \
 ./exec_container.o \
 ./get_num.o \
@@ -18,6 +20,7 @@ OBJS += \
 ./ugid_functions.o 
 
 C_DEPS += \
+./daemonize.d \
 ./error_functions.d \
 ./exec_container.d \
 ./get_num.d \
