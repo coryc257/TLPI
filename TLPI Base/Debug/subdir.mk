@@ -4,6 +4,7 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../curr_time.c \
 ../daemonize.c \
 ../error_functions.c \
 ../exec_container.c \
@@ -12,6 +13,7 @@ C_SRCS += \
 ../ugid_functions.c 
 
 OBJS += \
+./curr_time.o \
 ./daemonize.o \
 ./error_functions.o \
 ./exec_container.o \
@@ -20,6 +22,7 @@ OBJS += \
 ./ugid_functions.o 
 
 C_DEPS += \
+./curr_time.d \
 ./daemonize.d \
 ./error_functions.d \
 ./exec_container.d \
@@ -32,7 +35,7 @@ C_DEPS += \
 %.o: ../%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	gcc -I"/home/cory/eclipse-workspace/TLPI Base/lib" -O0 -g3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
+	gcc -I"/home/cory/eclipse-workspace/TLPI Base/lib" -O0 -g3 -Wall -c -fmessage-length=0 -fPIC -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

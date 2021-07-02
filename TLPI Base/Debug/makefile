@@ -22,19 +22,19 @@ endif
 # Add inputs and outputs from these tool invocations to the build variables 
 
 # All Target
-all: TLPI\ Base
+all: libtlpi_base.so
 
 # Tool invocations
-TLPI\ Base: $(OBJS) $(USER_OBJS)
+libtlpi_base.so: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross GCC Linker'
-	gcc  -o "TLPI Base" $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc -shared -Wl,-soname=libtlpi_base.so -o "libtlpi_base.so" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) "TLPI Base"
+	-$(RM) $(LIBRARIES)$(OBJS)$(C_DEPS) libtlpi_base.so
 	-@echo ' '
 
 .PHONY: all clean dependents

@@ -1,0 +1,2 @@
+#!/bin/bash
+LD_LIBRARY_PATH=. ./_svsem_op "${@}"
