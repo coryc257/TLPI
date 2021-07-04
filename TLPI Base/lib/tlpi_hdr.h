@@ -19,7 +19,9 @@
 
 #include "error_functions.h"
 
+#ifndef A_BOOL
 typedef enum { FALSE, TRUE } Boolean;
+#endif
 
 #define min(m,n) ((m) < (n)) ? (m) : (n)
 #define max(m,n) ((m) > (n)) ? (m) : (n)
