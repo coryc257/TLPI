@@ -34,6 +34,17 @@ typedef struct directory_listing {
 	*/
 } DIRECTORY_LISTING;
 
+typedef struct directory_item {
+	char *key;
+	char *value;
+	void *handle;
+} DIRECTORY_ITEM;
+
+typedef struct directory_message {
+	long mtype;
+	char message[2002];
+} DIRECTORY_MESSAGE;
+
 typedef struct value_entry {
 	char value[1024];
 } VALUE_ENTRY;
@@ -48,7 +59,19 @@ typedef struct base_info {
 	int list_id;
 } BASE_INFO;
 
+typedef enum {
+	EA_ADD,
+	EA_UPDATE,
+	EA_DELETE,
+	EA_GET,
+	EA_FIX
+} ENTRY_ACTION;
+
 void init_directory_server(const char *server_root);
 int add_entry(const char *server_root, const char *key, const char *value);
+int update_entry(const char *server_root, const char *key, const char *value);
+int delete_entry(const char *server_root, const char *key);
+DIRECTORY_ITEM * get_entry(const char *server_root, const char *key);
+void fix_server(const char *server_root);
 
 #endif /* LIB_DIRECTORY_SERVICE_H_ */

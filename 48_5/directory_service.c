@@ -184,12 +184,61 @@ release_lock(BASE_INFO *info)
 	return semop(info->sync_id,x,1);
 }
 
+static void
+get_item_size(int *key_size, char *item, size_t size)
+{
+	for (int j = 0; j <= size; j++) {
+		if (item[j] == '\0') {
+			break;
+		}
+		(*key_size)++;
+	}
+}
 
-int
-add_entry(const char *server_root, const char *key, const char *value)
+
+static void
+construct_output(DIRECTORY_MESSAGE *item, DIRECTORY_LISTING *found)
+{
+	int key_size = 0, value_size = 0;
+
+	item->mtype = getpid();
+	get_item_size(&key_size, found->key, sizeof(found->key));
+	get_item_size(&value_size, found->value, sizeof(found->value));
+
+
+	memset(&item->message[0],0,sizeof(item->message));
+	strncpy(&item->message[0], found->key, key_size);
+	*(item->message + key_size) = '\0';
+	strncpy(&item->message[key_size+1], found->value, value_size);
+	/*
+	 1234567890
+	 key0valu0?
+	 3+1+4 == 8
+	*/
+	*(item->message + key_size + 1 + value_size) = '\0';
+}
+
+static void
+construct_return(DIRECTORY_MESSAGE *msg, DIRECTORY_ITEM *out)
+{
+	int v_index = 0;
+	out->key = strdup(&msg->message[0]);
+	while(1) {
+		if (msg->message[v_index] == '\0') {
+			v_index++;
+			break;
+		}
+		v_index++;
+	}
+	out->value = strdup(&msg->message[v_index]);
+}
+
+static int
+modify_entry(const char *server_root, const char *key, const char *value, ENTRY_ACTION action, DIRECTORY_ITEM *out)
 {
 	BASE_INFO *info;
 	DIRECTORY_LISTING *listing, *pos, *open_spot;
+	DIRECTORY_MESSAGE dmsg;
 	struct timespec start, finish;
 	pid_t child;
 	sigset_t block, ready, prev;
@@ -200,10 +249,27 @@ add_entry(const char *server_root, const char *key, const char *value)
 	sigfillset(&block);
 	sigemptyset(&ready);
 
-	if (strlen(key) > 500 || strlen(value) > 1500) {
-		errno = EINVAL;
-		return -1;
+	if (action == EA_FIX) {
+		semctl(info->sync_id,0,SETVAL,1);
+		return 0;
 	}
+
+	if (action == EA_ADD || action == EA_UPDATE) {
+		if (key == NULL || value == NULL)
+			return EINVAL;
+		if (strlen(key) > 500 || strlen(value) > 1500)
+			return EINVAL;
+	}
+
+	if (action == EA_DELETE || action == EA_GET) {
+		if (key == NULL)
+			return EINVAL;
+		if (strlen(key) > 500)
+			return EINVAL;
+	}
+
+	if (action == EA_GET && out == NULL)
+		return EINVAL;
 
 	// Server will deadlock if something makes this go boom
 	// BLOCK ALL SIGNALS, set them back at the end
@@ -218,31 +284,52 @@ add_entry(const char *server_root, const char *key, const char *value)
 		release_lock(info);
 		break;
 	case 0:
-		sigprocmask(SIG_SETMASK,&ready,NULL);
-		open_spot = NULL;
-		pos = listing = (DIRECTORY_LISTING *)shmat(info->list_id,NULL,0);
-		for (int j = 0; j < 501; j++) {
+		{
+			sigprocmask(SIG_SETMASK,&ready,NULL);
+			open_spot = NULL;
+			pos = listing = (DIRECTORY_LISTING *)shmat(info->list_id,NULL,0);
+			for (int j = 0; j < 501; j++) {
 
-			if (strncmp(key,pos->key, 500) == 0) {
+				if (strncmp(key,pos->key, 500) == 0) {
+					if (action == EA_ADD) {
+						_exit(EALREADY);
+					} else if (action == EA_DELETE) {
+						pos->in_use = 0;
+						_exit(EXIT_SUCCESS);
+					} else if (action == EA_UPDATE) {
+						memset(pos->value,0,sizeof(pos->value));
+						strncat(pos->value,value,strlen(value));
+						_exit(EXIT_SUCCESS);
+					} else if (action == EA_GET) {
+						construct_output(&dmsg, pos);
+						msgsnd(info->file_id,&dmsg,sizeof(dmsg.message),0);
+						_exit(EXIT_SUCCESS);
+					}
+					//release_lock(info);
+					_exit(EINVAL);
+				}
+				if (pos->in_use != 257 && open_spot == NULL)
+					open_spot = pos;
+
+				pos++;
+			}
+
+			if (open_spot == NULL && action == EA_ADD) {
 				_exit(EALREADY);
 				//release_lock(info);
-				return -1;
+			} else if (action == EA_ADD) {
+				open_spot->in_use = 257;
+				memset(open_spot->key,0,sizeof(open_spot->key));
+				memset(open_spot->value,0,sizeof(open_spot->value));
+				strncat(open_spot->key,key,strlen(key));
+				strncat(open_spot->value,value,strlen(value));
+				_exit(EXIT_SUCCESS);
+			} else if (action == EA_GET) {
+				_exit(ENODATA);
+			} else {
+				_exit(EINVAL);
 			}
-			if (pos->in_use != 257 && open_spot == NULL)
-				open_spot = pos;
-
-			pos++;
 		}
-
-		if (open_spot == NULL) {
-			_exit(EALREADY);
-			//release_lock(info);
-			return -1;
-		}
-
-		open_spot->in_use = 257;
-		strncat(open_spot->key,key,strlen(key));
-		strncat(open_spot->value,value,strlen(value));
 		break;
 	default:
 		clock_gettime(CLOCK_REALTIME, &start);
@@ -253,6 +340,18 @@ add_entry(const char *server_root, const char *key, const char *value)
 				sigprocmask(SIG_SETMASK,&prev,NULL);
 				// an _exit appears to shift the bits, shift them back
 				status = ((unsigned int)status)>>8;
+
+				if (status == 0 && action == EA_GET) {
+					if ((status = msgrcv(info->file_id, &dmsg, sizeof(dmsg.message),child,IPC_NOWAIT)) == sizeof(dmsg.message)) {
+						construct_return(&dmsg,out);
+						return 0;
+					} else {
+						if (status == -1)
+							return errno;
+						else
+							return EBADMSG;
+					}
+				}
 				return status;
 			}
 			// wait 6 seconds for the process to complete
@@ -263,9 +362,50 @@ add_entry(const char *server_root, const char *key, const char *value)
 				return ETIMEDOUT;
 			}
 		}
-
+		break;
 	}
 	//release_lock(info);
 	return 0;
 
+}
+
+
+int
+add_entry(const char *server_root, const char *key, const char *value)
+{
+	return modify_entry(server_root, key, value, EA_ADD, NULL);
+}
+
+int
+update_entry(const char *server_root, const char *key, const char *value)
+{
+	return modify_entry(server_root, key, value, EA_UPDATE, NULL);
+}
+
+int
+delete_entry(const char *server_root, const char *key)
+{
+	return modify_entry(server_root, key, NULL, EA_DELETE, NULL);
+}
+
+void
+fix_server(const char *server_root)
+{
+	modify_entry(server_root, NULL, NULL, EA_FIX, NULL);
+}
+
+DIRECTORY_ITEM *
+get_entry(const char *server_root, const char *key)
+{
+	DIRECTORY_ITEM *x;
+	int ret;
+	x = malloc(sizeof(DIRECTORY_ITEM));
+	if ((ret = modify_entry(server_root,key,NULL,EA_GET,x)) != 0)
+	{
+		errno = ret;
+		free(x);
+		return NULL;
+	}
+
+	return x;
 }
