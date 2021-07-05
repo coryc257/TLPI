@@ -8,6 +8,7 @@
 int
 main(int argc, char *argv[])
 {
-	my_cp(argc,argv);
+	//my_cp(argc,argv);
+	x49_4(argc,argv);
 	return 0;
 }
