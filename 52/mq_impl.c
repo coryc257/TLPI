@@ -242,7 +242,7 @@ open_message_queues(TALK_TYPE *ref, const char *chat_user)
 
 	return 0;
 }
-
+//
 int
 send_message(TALK_TYPE *ref, const char *message)
 {
