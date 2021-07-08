@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <openssl/rand.h>
 #include <openssl/aes.h>
+#include <semaphore.h>
 
 #define TOKEN_LEN 32
 
@@ -47,6 +48,8 @@ typedef struct __talk__type__this {
 	SECURITY_FILE *security;
 	AES_KEY ekey;
 	AES_KEY dkey;
+	sem_t *my_sem;
+	sem_t *their_sem;
 } THIS;
 
 typedef struct __message_type {

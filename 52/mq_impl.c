@@ -54,7 +54,7 @@ init_names(TALK_TYPE *ref, const char *chat_user)
 
 	snprintf(ref->chat_name__1, MAX_CNAME, "/talkt_%d_%d", lower, upper);
 	snprintf(ref->chat_name__2, MAX_CNAME, "/talkt_%d_%d", upper, lower);
-	snprintf(ref->security_file, PATH_MAX+1, "/tmp/talkt_%d_%d", lower, upper);
+	snprintf(ref->security_file, PATH_MAX+1, "/talkt_%d_%d", lower, upper);
 	return 0;
 }
 
@@ -113,9 +113,9 @@ init_sync(TALK_TYPE *ref)
 	ma.mq_maxmsg = 10;
 	ma.mq_msgsize = 4096;
 
-	fd = open(ref->security_file, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+	fd = shm_open(ref->security_file, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd == -1 && errno == EEXIST) {
-		fd = open(ref->security_file, O_RDWR, S_IRUSR | S_IWUSR);
+		fd = shm_open(ref->security_file, O_RDWR, S_IRUSR | S_IWUSR);
 		if (fd == -1)
 			errExit("Cannot Open Security File\n");
 		is_maker = 0;
@@ -135,41 +135,75 @@ init_sync(TALK_TYPE *ref)
 		memset(ref->security,0,4096);
 		ref->security->lower_user = ref->user1;
 		ref->security->upper_user = ref->user2;
+		ref->security->lower_ready = 0;
+		ref->security->upper_ready = 0;
 		RAND_bytes(ref->security->security_token,TOKEN_LEN);
 		RAND_bytes(ref->security->auth_token,TOKEN_LEN);
 
-		f_acl = acl_get_file(ref->security_file, ACL_TYPE_ACCESS);
+		f_acl = acl_get_fd(fd);
 
 		create_mask(ref, f_acl, ACL_MASK);
 		create_mask(ref, f_acl, ACL_USER);
-		if (acl_set_file(ref->security_file,ACL_TYPE_ACCESS,f_acl) == -1) {
+		if (acl_set_fd(fd,f_acl) == -1) {
 			unlink(ref->security_file);
 			errExit("acl_set_fd");
 		}
 
-		mq_unlink(ref->chat_name__1);
-		mq_unlink(ref->chat_name__2);
-		prev = umask(0);
-
-		ref->chat_1 = mq_open(ref->chat_name__1,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
-		ref->chat_2 = mq_open(ref->chat_name__2,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
+		//mq_unlink(ref->chat_name__1);
+		//mq_unlink(ref->chat_name__2);
 
 
-		umask(prev);
+		//ref->chat_1 = mq_open(ref->chat_name__1,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
+		//ref->chat_2 = mq_open(ref->chat_name__2,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
+
+
+
 
 
 	} else {
-		ref->chat_1 = mq_open(ref->chat_name__1, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
-		ref->chat_2 = mq_open(ref->chat_name__2, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
+		//ref->chat_1 = mq_open(ref->chat_name__1, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
+		//ref->chat_2 = mq_open(ref->chat_name__2, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
 	}
 
+	prev = umask(0);
 	if (ref->security->lower_user == getuid()) {
-		ref->input = ref->chat_2;
-		ref->output = ref->chat_1;
+		ref->my_sem = sem_open(ref->chat_name__2, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH, 256);
+		ref->input = mq_open(ref->chat_name__2, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IWOTH, &ma);
+		if (ref->input == -1) {
+			ref->input = mq_open(ref->chat_name__2, O_RDWR);
+			if (ref->input == -1)
+				errExit("Cannot Open Input Queue\n");
+		}
+		ref->output = -257;
+		if (ref->my_sem != NULL) {
+			ref->security->lower_ready = 257;
+			sem_post(ref->my_sem);
+		}
+		else {
+			if ((ref->my_sem = sem_open(ref->chat_name__2, O_RDWR)) == NULL)
+				errExit("Cannot Open Semaphore\n");
+		}
+		//ref->output = mq_open(ref->chat_name__1, O_WRONLY);
 	} else {
-		ref->input = ref->chat_1;
-		ref->output = ref->chat_2;
+		ref->my_sem = sem_open(ref->chat_name__1, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH, 256);
+		ref->input = mq_open(ref->chat_name__1, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IWOTH, &ma);
+		if (ref->input == -1) {
+			ref->input = mq_open(ref->chat_name__1, O_RDWR);
+			if (ref->input == -1)
+				errExit("Cannot Open Input Queue\n");
+		}
+		ref->output = -257;
+		if (ref->my_sem != NULL) {
+			ref->security->upper_ready = 257;
+			sem_post(ref->my_sem);
+		}
+		else {
+			if ((ref->my_sem = sem_open(ref->chat_name__1, O_RDWR)) == NULL)
+				errExit("Cannot Open Semaphore\n");
+		}
+		//ref->output = mq_open(ref->chat_name__2, O_WRONLY);
 	}
+	umask(prev);
 
 	// Set Up Encryption
 	if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
@@ -177,6 +211,7 @@ init_sync(TALK_TYPE *ref)
 	if (AES_set_decrypt_key(ref->security->security_token,256,&(ref->dkey)) == -1)
 			errExit("AES KEY SET\n");
 
+	ref->their_sem = NULL;
 	return 0;
 
 }
@@ -187,6 +222,7 @@ __t_monitor_input(void *arg)
 	MESSAGE_TYPE msg, pmsg;
 	char print_buffer[sizeof(MESSAGE_TYPE)*2];
 	TALK_TYPE *ref = (TALK_TYPE*)arg;
+	int semval;
 
 	if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
 		errExit("AES KEY SET\n");
@@ -195,6 +231,9 @@ __t_monitor_input(void *arg)
 
 	for (;;) {
 		sleep(1);
+		sem_getvalue(ref->my_sem,&semval);
+		if(semval == 0)
+			sem_post(ref->my_sem);
 		if (mq_receive(ref->input, (char*)&msg, sizeof(MESSAGE_TYPE), NULL) != sizeof(MESSAGE_TYPE)) {
 			fprintf(stderr,"%s\n", "Bad Message Received\n");
 			//sched_yield();
@@ -230,7 +269,7 @@ open_message_queues(TALK_TYPE *ref, const char *chat_user)
 	acl_t p_them = 0;
 	unsigned char *rb;
 
-	if (init_names(ref,chat_user) != 0)
+ 	if (init_names(ref,chat_user) != 0)
 		return -1;
 
 	if (init_sync(ref) != 0)
@@ -247,11 +286,32 @@ int
 send_message(TALK_TYPE *ref, const char *message)
 {
 	MESSAGE_TYPE pmsg, emsg;
-
+	volatile int sem_val = 0;
 	if (strlen(message) > 4000) {
 		errno = E2BIG;
 		return -1;
 	}
+
+	if (ref->their_sem == NULL) {
+		while (ref->their_sem == NULL) {
+			if (ref->security->lower_user == getuid()) {
+				ref->their_sem = sem_open(ref->chat_name__1, O_RDONLY);
+			} else {
+				ref->their_sem = sem_open(ref->chat_name__2, O_RDONLY);
+			}
+		}
+	}
+
+	sem_wait(ref->their_sem);
+
+	while (ref->output == -257 || ref->output == -1) {
+		if (ref->security->lower_user == getuid()) {
+			ref->output = mq_open(ref->chat_name__1, O_WRONLY);
+		} else {
+			ref->output = mq_open(ref->chat_name__2, O_WRONLY);
+		}
+	}
+
 	strncpy(pmsg.auth_token,ref->security->auth_token,TOKEN_LEN);
 	strncpy(pmsg.message,message,4000);
 	pmsg.message[4000] = '\0';
