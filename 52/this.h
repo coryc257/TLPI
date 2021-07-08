@@ -22,6 +22,7 @@ typedef struct security_file {
 	pid_t lower_user;
 	int lower_ready;
 	unsigned char security_token[TOKEN_LEN];
+	unsigned char auth_token[TOKEN_LEN];
 	int upper_ready;
 	pid_t upper_user;
 } SECURITY_FILE;
@@ -35,13 +36,23 @@ typedef struct __talk__type__this {
 	mqd_t chat_1;
 	mqd_t chat_2;
 
+	mqd_t input;
+	mqd_t output;
+
 	uid_t user1;
 	uid_t user2;
+
+	pthread_t monitor;
 
 	SECURITY_FILE *security;
 	AES_KEY ekey;
 	AES_KEY dkey;
 } THIS;
+
+typedef struct __message_type {
+	unsigned char auth_token[TOKEN_LEN];
+	char message[4096-TOKEN_LEN];
+} MESSAGE_TYPE;
 
 
 
