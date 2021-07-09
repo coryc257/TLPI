@@ -16,8 +16,7 @@
 #include <openssl/aes.h>
 #include <sys/mman.h>
 
-#define MAX_CNAME (255*2)+9
-#define ALLOC_CNAME malloc(sizeof(char)*(MAX_CNAME))
+
 
 static int
 init_names(TALK_TYPE *ref, const char *chat_user)
@@ -110,8 +109,8 @@ init_sync(TALK_TYPE *ref)
 	mode_t prev;
 	struct mq_attr ma;
 
-	ma.mq_maxmsg = 10;
-	ma.mq_msgsize = 4096;
+	ma.mq_maxmsg = MAX_QUEUED;
+	ma.mq_msgsize = MESSAGE_SIZE;
 
 	fd = shm_open(ref->security_file, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
 	if (fd == -1 && errno == EEXIST) {
@@ -128,11 +127,11 @@ init_sync(TALK_TYPE *ref)
 	}
 
 
-	ref->security = mmap(NULL,4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	ref->security = mmap(NULL, MESSAGE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if (is_maker) {
-		ftruncate(fd,4096);
-		memset(ref->security,0,4096);
+		ftruncate(fd, MESSAGE_SIZE);
+		memset(ref->security,0, MESSAGE_SIZE);
 		ref->security->lower_user = ref->user1;
 		ref->security->upper_user = ref->user2;
 		ref->security->lower_ready = 0;
@@ -148,21 +147,6 @@ init_sync(TALK_TYPE *ref)
 			unlink(ref->security_file);
 			errExit("acl_set_fd");
 		}
-
-		//mq_unlink(ref->chat_name__1);
-		//mq_unlink(ref->chat_name__2);
-
-
-		//ref->chat_1 = mq_open(ref->chat_name__1,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
-		//ref->chat_2 = mq_open(ref->chat_name__2,O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
-
-
-
-
-
-	} else {
-		//ref->chat_1 = mq_open(ref->chat_name__1, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
-		//ref->chat_2 = mq_open(ref->chat_name__2, O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH | S_IRGRP | S_IWGRP, &ma);
 	}
 
 	prev = umask(0);
@@ -183,7 +167,6 @@ init_sync(TALK_TYPE *ref)
 			if ((ref->my_sem = sem_open(ref->chat_name__2, O_RDWR)) == NULL)
 				errExit("Cannot Open Semaphore\n");
 		}
-		//ref->output = mq_open(ref->chat_name__1, O_WRONLY);
 	} else {
 		ref->my_sem = sem_open(ref->chat_name__1, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IROTH | S_IWOTH, 256);
 		ref->input = mq_open(ref->chat_name__1, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR | S_IWOTH, &ma);
@@ -201,7 +184,6 @@ init_sync(TALK_TYPE *ref)
 			if ((ref->my_sem = sem_open(ref->chat_name__1, O_RDWR)) == NULL)
 				errExit("Cannot Open Semaphore\n");
 		}
-		//ref->output = mq_open(ref->chat_name__2, O_WRONLY);
 	}
 	umask(prev);
 
@@ -216,43 +198,52 @@ init_sync(TALK_TYPE *ref)
 
 }
 
+static void
+validate_and_display(MESSAGE_TYPE *pmsg, TALK_TYPE *ref)
+{
+	static __thread char print_buffer[MESSAGE_SIZE*2];
+
+	memset(print_buffer, 0, MESSAGE_SIZE * 2);
+	strncat(print_buffer, pmsg->message, MESSAGE_BUFFER);
+	if (memcmp(pmsg->auth_token, ref->security->auth_token, TOKEN_LEN) == 0) {
+		printf("Authorized Message:%s", print_buffer);
+	} else {
+		for (int j = 0; j < TOKEN_LEN; j++) {
+			printf("%d::%d==%d\n", (int) pmsg->auth_token[j],
+					(int) ref->security->auth_token[j],
+					(int) pmsg->auth_token[j] - ref->security->auth_token[j]);
+		}
+		printf("\nMalicious Message:%s", print_buffer);
+	}
+}
+
 static void *
 __t_monitor_input(void *arg)
 {
-	MESSAGE_TYPE msg, pmsg;
-	char print_buffer[sizeof(MESSAGE_TYPE)*2];
+	MESSAGE_TYPE *pmsg;
+	static __thread unsigned char shenanigans[MESSAGE_SIZE];
+	static __thread unsigned char msg[MESSAGE_SIZE];
+	static __thread int semval;
 	TALK_TYPE *ref = (TALK_TYPE*)arg;
-	int semval;
 
-	/*if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
-		errExit("AES KEY SET\n");
-	if (AES_set_decrypt_key(ref->security->security_token,256,&(ref->dkey)) == -1)
-			errExit("AES KEY SET\n");*/
+	pmsg = (MESSAGE_TYPE *)&shenanigans[IV_SIZE];
 
 	for (;;) {
-		sleep(1);
 		sem_getvalue(ref->my_sem,&semval);
-		memset(&msg,0,sizeof(MESSAGE_TYPE));
-		memset(&pmsg,0,sizeof(MESSAGE_TYPE));
+
 		if(semval == 0)
 			sem_post(ref->my_sem);
-		if (mq_receive(ref->input, (char*)&msg, sizeof(MESSAGE_TYPE), NULL) != sizeof(MESSAGE_TYPE)) {
+
+		if (mq_receive(ref->input, (char*)msg, MESSAGE_SIZE, NULL) != MESSAGE_SIZE) {
 			fprintf(stderr,"%s\n", "Bad Message Received\n");
-			//sched_yield();
+			memset(msg, 0, MESSAGE_SIZE);
+			memset(shenanigans, 0, MESSAGE_SIZE);
 			continue;
 		} else {
-			AES_cbc_encrypt((unsigned char *)&msg, (unsigned char *)&pmsg, sizeof(MESSAGE_TYPE), &(ref->dkey), ref->security->auth_token, AES_DECRYPT);
-			AES_e
-			memset(print_buffer,0,sizeof(MESSAGE_TYPE)*2);
-			strncat(print_buffer,pmsg.message,4064);
-			if (memcmp((unsigned char*)pmsg.auth_token, (unsigned char*)ref->security->auth_token, TOKEN_LEN) == 0) {
-				printf("Authorized Message:%s",print_buffer);
-			} else {
-				for (int j = 0; j < TOKEN_LEN; j++) {
-					printf("%d::%d==%d\n", (int)pmsg.auth_token[j], (int)ref->security->auth_token[j], (int)pmsg.auth_token[j]-ref->security->auth_token[j]);
-				}
-				printf("\nMalicious Message:%s",print_buffer);
-			}
+			AES_cbc_encrypt(msg, shenanigans, MESSAGE_SIZE, &(ref->dkey), msg, AES_DECRYPT);
+			validate_and_display(pmsg, ref);
+			memset(msg, 0, MESSAGE_SIZE);
+			memset(shenanigans, 0, MESSAGE_SIZE);
 		}
 	}
 	return (void*)257;
@@ -271,10 +262,6 @@ monitor_input(TALK_TYPE *ref)
 int
 open_message_queues(TALK_TYPE *ref, const char *chat_user)
 {
-
-	acl_t p_them = 0;
-	unsigned char *rb;
-
  	if (init_names(ref,chat_user) != 0)
 		return -1;
 
@@ -284,20 +271,12 @@ open_message_queues(TALK_TYPE *ref, const char *chat_user)
 	if (monitor_input(ref) != 0)
 		return -1;
 
-
 	return 0;
 }
-//
-int
-send_message(TALK_TYPE *ref, const char *message)
-{
-	MESSAGE_TYPE pmsg, emsg;
-	volatile int sem_val = 0;
-	if (strlen(message) > 4000) {
-		errno = E2BIG;
-		return -1;
-	}
 
+static void
+ensure_ready(TALK_TYPE *ref)
+{
 	if (ref->their_sem == NULL) {
 		while (ref->their_sem == NULL) {
 			if (ref->security->lower_user == getuid()) {
@@ -307,9 +286,7 @@ send_message(TALK_TYPE *ref, const char *message)
 			}
 		}
 	}
-
 	sem_wait(ref->their_sem);
-
 	while (ref->output == -257 || ref->output == -1) {
 		if (ref->security->lower_user == getuid()) {
 			ref->output = mq_open(ref->chat_name__1, O_WRONLY);
@@ -317,17 +294,35 @@ send_message(TALK_TYPE *ref, const char *message)
 			ref->output = mq_open(ref->chat_name__2, O_WRONLY);
 		}
 	}
+}
 
-	memcpy(pmsg.auth_token,ref->security->auth_token,TOKEN_LEN);
-	strncpy(pmsg.message,message,4000);
-	pmsg.message[4000] = '\0';
+//
+int
+send_message(TALK_TYPE *ref, const char *message)
+{
+	MESSAGE_TYPE *pmsg;
+	unsigned char shenanigans[MESSAGE_SIZE];
+	unsigned char emsg[MESSAGE_SIZE];
+	unsigned char iv[IV_SIZE];
 
-	/*if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
-		errExit("AES KEY SET\n");
-	if (AES_set_decrypt_key(ref->security->security_token,256,&(ref->dkey)) == -1)
-			errExit("AES KEY SET\n");*/
+	if (strlen(message) > MAX_TEXT_MESSAGE) {
+		errno = E2BIG;
+		return -1;
+	}
 
-	AES_cbc_encrypt((unsigned char *)&pmsg, (unsigned char *)&emsg, sizeof(MESSAGE_TYPE), &(ref->ekey), ref->security->auth_token, AES_ENCRYPT);
-	if (mq_send(ref->output, (char *)&emsg, sizeof(MESSAGE_TYPE), 1) == -1)
+	ensure_ready(ref);
+
+	RAND_bytes(iv,IV_SIZE);
+	pmsg = (MESSAGE_TYPE*)&shenanigans[IV_SIZE];
+
+	memcpy(pmsg->auth_token, ref->security->auth_token, TOKEN_LEN);
+	strncpy(pmsg->message, message, MAX_TEXT_MESSAGE);
+	pmsg->message[SENTINEL_INDEX] = '\0';
+
+
+	AES_cbc_encrypt(shenanigans, emsg, MESSAGE_SIZE, &(ref->ekey), iv, AES_ENCRYPT);
+	if (mq_send(ref->output, (char *)emsg, MESSAGE_SIZE, 1) == -1)
 		errExit("mq_send\n");
+
+	return 0;
 }

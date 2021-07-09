@@ -16,7 +16,16 @@
 #include <openssl/aes.h>
 #include <semaphore.h>
 
+#define MAX_QUEUED 10
+#define IV_SIZE 16
 #define TOKEN_LEN 32
+#define MESSAGE_SIZE 4096
+#define MESSAGE_BUFFER MESSAGE_SIZE-TOKEN_LEN-IV_SIZE
+#define MAX_TEXT_MESSAGE MESSAGE_SIZE-TOKEN_LEN-IV_SIZE-1
+#define SENTINEL_INDEX MAX_TEXT_MESSAGE-1
+#define MAX_CNAME (255*2)+9
+#define ALLOC_CNAME malloc(sizeof(char)*(MAX_CNAME))
+
 
 typedef struct security_file {
 	int sync;
@@ -54,7 +63,7 @@ typedef struct __talk__type__this {
 
 typedef struct __message_type {
 	unsigned char auth_token[TOKEN_LEN];
-	char message[4096-TOKEN_LEN];
+	char message[MESSAGE_BUFFER];
 } MESSAGE_TYPE;
 
 
