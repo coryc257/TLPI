@@ -224,14 +224,16 @@ __t_monitor_input(void *arg)
 	TALK_TYPE *ref = (TALK_TYPE*)arg;
 	int semval;
 
-	if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
+	/*if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
 		errExit("AES KEY SET\n");
 	if (AES_set_decrypt_key(ref->security->security_token,256,&(ref->dkey)) == -1)
-			errExit("AES KEY SET\n");
+			errExit("AES KEY SET\n");*/
 
 	for (;;) {
 		sleep(1);
 		sem_getvalue(ref->my_sem,&semval);
+		memset(&msg,0,sizeof(MESSAGE_TYPE));
+		memset(&pmsg,0,sizeof(MESSAGE_TYPE));
 		if(semval == 0)
 			sem_post(ref->my_sem);
 		if (mq_receive(ref->input, (char*)&msg, sizeof(MESSAGE_TYPE), NULL) != sizeof(MESSAGE_TYPE)) {
@@ -239,13 +241,17 @@ __t_monitor_input(void *arg)
 			//sched_yield();
 			continue;
 		} else {
-			AES_cbc_encrypt((unsigned char *)&msg, (unsigned char *)&pmsg, 4096, &(ref->dkey), ref->security->auth_token, AES_DECRYPT);
+			AES_cbc_encrypt((unsigned char *)&msg, (unsigned char *)&pmsg, sizeof(MESSAGE_TYPE), &(ref->dkey), ref->security->auth_token, AES_DECRYPT);
+			AES_e
 			memset(print_buffer,0,sizeof(MESSAGE_TYPE)*2);
 			strncat(print_buffer,pmsg.message,4064);
-			if (memcmp(pmsg.auth_token, ref->security->auth_token, TOKEN_LEN) == 0) {
+			if (memcmp((unsigned char*)pmsg.auth_token, (unsigned char*)ref->security->auth_token, TOKEN_LEN) == 0) {
 				printf("Authorized Message:%s",print_buffer);
 			} else {
-				printf("Malicious Message:%s",print_buffer);
+				for (int j = 0; j < TOKEN_LEN; j++) {
+					printf("%d::%d==%d\n", (int)pmsg.auth_token[j], (int)ref->security->auth_token[j], (int)pmsg.auth_token[j]-ref->security->auth_token[j]);
+				}
+				printf("\nMalicious Message:%s",print_buffer);
 			}
 		}
 	}
@@ -312,16 +318,16 @@ send_message(TALK_TYPE *ref, const char *message)
 		}
 	}
 
-	strncpy(pmsg.auth_token,ref->security->auth_token,TOKEN_LEN);
+	memcpy(pmsg.auth_token,ref->security->auth_token,TOKEN_LEN);
 	strncpy(pmsg.message,message,4000);
 	pmsg.message[4000] = '\0';
 
-	if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
+	/*if (AES_set_encrypt_key(ref->security->security_token,256,&(ref->ekey)) == -1)
 		errExit("AES KEY SET\n");
 	if (AES_set_decrypt_key(ref->security->security_token,256,&(ref->dkey)) == -1)
-			errExit("AES KEY SET\n");
+			errExit("AES KEY SET\n");*/
 
-	AES_cbc_encrypt((unsigned char *)&pmsg, (unsigned char *)&emsg, 4096, &(ref->ekey), ref->security->auth_token, AES_ENCRYPT);
-	if (mq_send(ref->output, (unsigned char *)&emsg, sizeof(MESSAGE_TYPE), 1) == -1)
+	AES_cbc_encrypt((unsigned char *)&pmsg, (unsigned char *)&emsg, sizeof(MESSAGE_TYPE), &(ref->ekey), ref->security->auth_token, AES_ENCRYPT);
+	if (mq_send(ref->output, (char *)&emsg, sizeof(MESSAGE_TYPE), 1) == -1)
 		errExit("mq_send\n");
 }
