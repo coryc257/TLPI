@@ -84,7 +84,7 @@ x57_3__server(int argc, char *argv[])
 			continue;
 		}
 
-		memcpy(&ret.caller, &me.server, sizeof(return_message_packet));
+		memcpy(&ret.caller, &me.server, sizeof(struct sockaddr_un));
 		ret.request_number_current = me.sequence_number;
 		if (write(me.current_client, &ret, sizeof(return_message_packet)) == -1) {
 			printf("Bad Write\n");
@@ -134,6 +134,6 @@ x57_3__client(int argc, char *argv[])
 	close(s_sv);
 	s_sv = accept(s_me,(struct sockaddr *)&msg.caller, &status);
 	read(s_sv,&ret,sizeof(struct return_message_packet));
-	printf("STATUS:%d,%d\n", ret.request_number_previous, ret.request_number_current);
+	printf("STATUS:%lld,%lld\n", ret.request_number_previous, ret.request_number_current);
 
 }
