@@ -19,12 +19,18 @@
 
 #include "error_functions.h"
 
+#include "read_line.h"
+
 #ifndef A_BOOL
 typedef enum { FALSE, TRUE } Boolean;
 #endif
 
 #define min(m,n) ((m) < (n)) ? (m) : (n)
 #define max(m,n) ((m) > (n)) ? (m) : (n)
+
+int char_index(char *str, size_t len, char search);
+
+void append_to_hold(BUFFERED_STREAM_READER stream, char *str, size_t len);
 
 
 #endif /* TLPI_HDR_H_ */
