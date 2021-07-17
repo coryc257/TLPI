@@ -13,6 +13,7 @@
  *      Author: cory
  */
 
+#define _DEFAULT_SOURCE
 
 #include <pwd.h>
 #include <grp.h>
@@ -27,6 +28,9 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 #include "lib/curr_time.h"          /* Declares function defined here */
 #include "lib/tlpi_pwd.h"
@@ -38,6 +42,7 @@
 #include "lib/daemonize.h"
 #include "lib/tlpi_hdr.h"
 #include "lib/read_line.h"
+#include "lib/inet_sockets.h"
 
 char *		/* Return name corresponding to 'uid' or NULL on error */
 userNameFromId(uid_t uid)
@@ -679,7 +684,139 @@ buffered_stream_reader_read_line(BUFFERED_STREAM_READER stream)
 		if (line != NULL)
 			return line;
 	}
+	return NULL;
 }
 
 
+
+/*
+ * Socket Library
+ */
+
+int // Generally for a client
+inetConnect(const char *host, const char *service, int type)
+{
+	struct addrinfo hints;
+	struct addrinfo *result, *rp;
+	int sfd, s;
+
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_canonname = NULL;
+	hints.ai_addr = NULL;
+	hints.ai_next = NULL;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = type;
+
+	s = getaddrinfo(host, service, &hints, &result);
+	if (s != 0) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+	/* Walk through returned list until we find an address structure
+	 * that can be used to successfully connect as socket */
+
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sfd == -1)
+			continue;
+
+		if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+			break; // Success
+
+		// connect failed, close this socket and try the next
+
+		close(sfd);
+	}
+
+	freeaddrinfo(result);
+
+	return (rp == NULL) ? -1 : sfd;
+}
+
+
+static int
+inetPassiveSocket(const char *service, int type, socklen_t *addrlen,
+		int doListen, int backlog)
+{
+	struct addrinfo hints;
+	struct addrinfo *result, *rp;
+	int sfd, s, optval;
+
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_canonname = NULL;
+	hints.ai_addr = NULL;
+	hints.ai_next = NULL;
+	hints.ai_socktype = type;
+	hints.ai_family = AF_UNSPEC; // Allows IPV4 or IPV6
+	hints.ai_flags = AI_PASSIVE; // Use wildcard IP address
+
+	s = getaddrinfo(NULL, service, &hints, &result);
+	if (s != 0) {
+		return -1;
+	}
+
+	/* Walk through returned list until we find an address
+	 * structure that can be used  to successfully create an bind a socket */
+	optval = 1;
+	for (rp = result; rp != NULL; rp = rp->ai_next) {
+		sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sfd == -1)
+			continue;
+
+		if (doListen == 1) {
+			if(setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
+				close(sfd);
+				freeaddrinfo(result);
+				return -1;
+			}
+		}
+
+		if (bind(sfd,rp->ai_addr, rp->ai_addrlen) == 0)
+			break;
+
+		// bind failed, go to the next
+		close(sfd);
+	}
+
+	if (rp != NULL && doListen == 1) {
+		if (listen(sfd,backlog) == -1) {
+			freeaddrinfo(result);
+			return -1;
+		}
+	}
+
+	if (rp != NULL && addrlen != NULL)
+		*addrlen = rp->ai_addrlen;
+
+	freeaddrinfo(result);
+
+	return (rp == NULL) ? -1 : sfd;
+}
+
+int
+inetListen(const char *service, int backlog, socklen_t *addrlen)
+{
+	return inetPassiveSocket(service, SOCK_STREAM, addrlen, 1, backlog);
+}
+
+int
+inetBind(const char *service, int type, socklen_t *addrlen)
+{
+	return inetPassiveSocket(service, type, addrlen, 0, 0);
+}
+
+char *
+inetAddressStr(const struct sockaddr *addr, socklen_t addrlen,
+		char *addrStr, int addrStrLen)
+{
+	char host[NI_MAXHOST], service[NI_MAXSERV];
+	if (getnameinfo(addr, addrlen, host, NI_MAXHOST, service, NI_MAXSERV, NI_NUMERICSERV) == 0)
+		snprintf(addrStr, addrStrLen, "(%s, %s)", host, service);
+	else
+		snprintf(addrStr, addrStrLen, "(?UNKNOWN?)");
+	addrStr[addrStrLen - 1] = '\0'; /* Ensure result is null-terminated */
+	return addrStr;
+
+}
 

@@ -16,6 +16,7 @@
 #include "is_seqnum.h"
 #include "tlpi_hdr.h"
 #include "read_line.h"
+#include "inet_sockets.h"
 #define BACKLOG 50
 
 int
@@ -43,50 +44,10 @@ is_seqnum_sv(int argc, char *argv[])
 
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)    errExit("signal");
 
-    /* Call getaddrinfo() to obtain a list of addresses that
-       we can try binding to */
+    lfd = inetListen("50000", BACKLOG, NULL);
 
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_canonname = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_next = NULL;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_UNSPEC;        /* Allows IPv4 or IPv6 */
-    hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
-                        /* Wildcard IP address; service name is numeric */
-
-    if (getaddrinfo(NULL, PORT_NUM, &hints, &result) != 0)
-        errExit("getaddrinfo");
-
-    /* Walk through returned list until we find an address structure
-       that can be used to successfully create and bind a socket */
-
-    optval = 1;
-    for (rp = result; rp != NULL; rp = rp->ai_next) {
-        lfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (lfd == -1)
-            continue;                   /* On error, try next address */
-
-        if (setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval))
-                == -1)
-             errExit("setsockopt");
-
-        if (bind(lfd, rp->ai_addr, rp->ai_addrlen) == 0)
-            break;                      /* Success */
-
-        /* bind() failed: close this socket and try next address */
-
-        close(lfd);
-    }
-
-     if (rp == NULL)
-        fatal("Could not bind socket to any address");
-
-    if (listen(lfd, BACKLOG) == -1)
-        errExit("listen");
-
-    freeaddrinfo(result);
-
+    if (lfd == -1)
+    	errExit("Cannot start server\n");
 
 
     for (;;) {                  /* Handle clients iteratively */

@@ -27,8 +27,8 @@ main(int argc, char *argv[])
 			break;
 	}*/
 
-	//is_seqnum_sv(argc,argv);
-	is_seqnum_cl(argc, argv);
+	is_seqnum_sv(argc,argv);
+	//is_seqnum_cl(argc, argv);
 
 	/*append_to_hold(stream,"Test\n", 5);
 	increment_line_count(stream);
