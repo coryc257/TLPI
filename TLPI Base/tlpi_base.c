@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <sys/un.h>
 
 #include "lib/curr_time.h"          /* Declares function defined here */
 #include "lib/tlpi_pwd.h"
@@ -43,6 +44,7 @@
 #include "lib/tlpi_hdr.h"
 #include "lib/read_line.h"
 #include "lib/inet_sockets.h"
+#include "lib/unix_sockets.h"
 
 char *		/* Return name corresponding to 'uid' or NULL on error */
 userNameFromId(uid_t uid)
@@ -818,5 +820,87 @@ inetAddressStr(const struct sockaddr *addr, socklen_t addrlen,
 	addrStr[addrStrLen - 1] = '\0'; /* Ensure result is null-terminated */
 	return addrStr;
 
+}
+
+int
+unixConnect(const char *name)
+{
+	int s;
+	struct sockaddr_un unix_socket;
+
+	if (strlen(name) > sizeof(unix_socket.sun_path)-1) {
+		errno = E2BIG;
+		return -1;
+	}
+
+	memset(&unix_socket, 0, sizeof(struct sockaddr_un));
+	unix_socket.sun_family = AF_UNIX;
+	strcpy(unix_socket.sun_path, name);
+
+
+	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+	if (connect(s, SOCK_ADDR(&unix_socket), sizeof(unix_socket.sun_path)) != 0) {
+		close(s);
+		return -1;
+	}
+
+	return s;
+}
+
+static int
+unixPassive(const char *name, int max_pending, int *umask_value, int do_listen)
+{
+	int s, pm;
+	struct sockaddr_un unix_socket;
+
+	if (strlen(name) > sizeof(unix_socket.sun_path)-1) {
+		errno = E2BIG;
+		return -1;
+	}
+
+	memset(&unix_socket, 0, sizeof(struct sockaddr_un));
+	unix_socket.sun_family = AF_UNIX;
+	strcpy(unix_socket.sun_path, name);
+
+	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+		errno = ENOSYS;
+		return -1;
+	}
+
+	if (umask_value != NULL) {
+		pm = umask(*umask_value);
+	}
+
+	if (bind(s, SOCK_ADDR(&unix_socket), sizeof(struct sockaddr_un)) != 0) {
+		close(s);
+		return -1;
+	}
+
+	if (umask_value != NULL) {
+		umask(pm);
+	}
+
+	if (listen(s,max_pending) == -1) {
+		close(s);
+		return -1;
+	}
+
+	return s;
+}
+
+int
+unixListen(const char *name, int max_pending, int *umask_value)
+{
+	return unixPassive(name, max_pending, umask_value, 1);
+}
+
+int
+unixBind(const char *name, int max_pending, int *umask_value)
+{
+	return unixPassive(name, max_pending, umask_value, 0);
 }
 
