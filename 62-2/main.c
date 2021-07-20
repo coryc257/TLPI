@@ -13,49 +13,8 @@
 #include <stdio.h>
 
 #include "tlpi_hdr.h"
+#include "make_pipe.h"
 
-typedef int PD;
-typedef struct __pipe {
-	PD input;
-	PD output;
-} PIPE;
-
-
-int make_pipe(PIPE **p)
-{
-	PIPE *new;
-	int fds[2];
-
-	*p = NULL;
-	new = malloc(sizeof(PIPE));;
-
-	if (new == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
-
-	if (socketpair(AF_UNIX, SOCK_DGRAM, 0, fds) == -1) {
-		free(new);
-		*p = NULL;
-		return -1;
-	}
-
-	new->input = fds[0];
-	new->output = fds[1];
-
-	if (shutdown(new->input, SHUT_RD) == -1) {
-		free(new);
-		return -1;
-	}
-	if (shutdown(new->output, SHUT_WR) == -1) {
-		free(new);
-		return -1;
-	}
-
-	*p = new;
-
-	return 0;
-}
 
 int
 main (int argc, char *argv[])

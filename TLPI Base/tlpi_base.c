@@ -46,6 +46,7 @@
 #include "lib/inet_sockets.h"
 #include "lib/unix_sockets.h"
 #include "lib/io_n.h"
+#include "lib/make_pipe.h"
 
 char *		/* Return name corresponding to 'uid' or NULL on error */
 userNameFromId(uid_t uid)
@@ -957,3 +958,42 @@ writen(int fd, const void *buffer, size_t n)
     return totWritten;                  /* Must be 'n' bytes if we get here */
 }
 
+
+/*
+ * make_pipe.h
+ */
+int make_pipe(PIPE **p)
+{
+	PIPE *new;
+	int fds[2];
+
+	*p = NULL;
+	new = malloc(sizeof(PIPE));;
+
+	if (new == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	if (socketpair(AF_UNIX, SOCK_DGRAM, 0, fds) == -1) {
+		free(new);
+		*p = NULL;
+		return -1;
+	}
+
+	new->input = fds[0];
+	new->output = fds[1];
+
+	if (shutdown(new->input, SHUT_RD) == -1) {
+		free(new);
+		return -1;
+	}
+	if (shutdown(new->output, SHUT_WR) == -1) {
+		free(new);
+		return -1;
+	}
+
+	*p = new;
+
+	return 0;
+}
