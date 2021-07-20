@@ -45,6 +45,7 @@
 #include "lib/read_line.h"
 #include "lib/inet_sockets.h"
 #include "lib/unix_sockets.h"
+#include "lib/io_n.h"
 
 char *		/* Return name corresponding to 'uid' or NULL on error */
 userNameFromId(uid_t uid)
@@ -902,5 +903,57 @@ int
 unixBind(const char *name, int max_pending, int *umask_value)
 {
 	return unixPassive(name, max_pending, umask_value, 0);
+}
+
+/*
+ * io_n.h
+ */
+
+ssize_t
+readn(int fd, void *buffer, size_t n)
+{
+    ssize_t numRead;                    /* # of bytes fetched by last read() */
+    size_t totRead;                     /* Total # of bytes read so far */
+    char *buf;
+
+    buf = buffer;                       /* No pointer arithmetic on "void *" */
+    for (totRead = 0; totRead < n; ) {
+        numRead = read(fd, buf, n - totRead);
+
+        if (numRead == 0)               /* EOF */
+            return totRead;             /* May be 0 if this is first read() */
+        if (numRead == -1) {
+            if (errno == EINTR)
+                continue;               /* Interrupted --> restart read() */
+            else
+                return -1;              /* Some other error */
+        }
+        totRead += numRead;
+        buf += numRead;
+    }
+    return totRead;                     /* Must be 'n' bytes if we get here */
+}
+
+ssize_t
+writen(int fd, const void *buffer, size_t n)
+{
+    ssize_t numWritten;                 /* # of bytes written by last write() */
+    size_t totWritten;                  /* Total # of bytes written so far */
+    const char *buf;
+
+    buf = buffer;                       /* No pointer arithmetic on "void *" */
+    for (totWritten = 0; totWritten < n; ) {
+        numWritten = write(fd, buf, n - totWritten);
+
+        if (numWritten <= 0) {
+            if (numWritten == -1 && errno == EINTR)
+                continue;               /* Interrupted --> restart write() */
+            else
+                return -1;              /* Some other error */
+        }
+        totWritten += numWritten;
+        buf += numWritten;
+    }
+    return totWritten;                  /* Must be 'n' bytes if we get here */
 }
 
