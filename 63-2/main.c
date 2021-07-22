@@ -124,6 +124,8 @@ __init__(void)
 	SERVER.pol = epoll_create(2);
 
 
+	// Function Pointer based polling, if this needed additional information it could actually
+	// be a pointer to a struct{fp, data}
 	epoll_ctl(SERVER.pol, EPOLL_CTL_ADD, SERVER.tcp, &(SERVER.tcp_watcher));
 	epoll_ctl(SERVER.pol, EPOLL_CTL_ADD, SERVER.udp, &(SERVER.udp_watcher));
 
