@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-
+#define _XOPEN_SOURCE 600
 #include <pwd.h>
 #include <grp.h>
 #include <ctype.h>
@@ -32,6 +32,9 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/un.h>
+#include <termios.h>
+#include <sys/ioctl.h>
+
 
 #include "lib/curr_time.h"          /* Declares function defined here */
 #include "lib/tlpi_pwd.h"
@@ -47,6 +50,9 @@
 #include "lib/unix_sockets.h"
 #include "lib/io_n.h"
 #include "lib/make_pipe.h"
+#include "lib/pty_master.h"            /* Declares ptyMasterOpen() */
+#include "lib/pty_fork.h"
+#include "lib/tty_functions.h"              /* Declares functions defined here */
 
 char *		/* Return name corresponding to 'uid' or NULL on error */
 userNameFromId(uid_t uid)
@@ -996,4 +1002,241 @@ int make_pipe(PIPE **p)
 	*p = new;
 
 	return 0;
+}
+
+/*************************************************************************\
+*                  Copyright (C) Michael Kerrisk, 2020.                   *
+*                                                                         *
+* This program is free software. You may use, modify, and redistribute it *
+* under the terms of the GNU Lesser General Public License as published   *
+* by the Free Software Foundation, either version 3 or (at your option)   *
+* any later version. This program is distributed without any warranty.    *
+* See the files COPYING.lgpl-v3 and COPYING.gpl-v3 for details.           *
+\*************************************************************************/
+
+/* Listing 64-1 */
+
+#define PTYM_PREFIX     "/dev/pty"
+#define PTYS_PREFIX     "/dev/tty"
+#define PTY_PREFIX_LEN  (sizeof(PTYM_PREFIX) - 1)
+#define PTY_NAME_LEN    (PTY_PREFIX_LEN + sizeof("XY"))
+#define X_RANGE         "pqrstuvwxyzabcde"
+#define Y_RANGE         "0123456789abcdef"
+
+int
+ptyMasterOpen(char *slaveName, size_t snLen)
+{
+    int masterFd, n;
+    char *x, *y;
+    char masterName[PTY_NAME_LEN];
+
+    if (PTY_NAME_LEN > snLen) {
+        errno = EOVERFLOW;
+        return -1;
+    }
+
+    memset(masterName, 0, PTY_NAME_LEN);
+    strncpy(masterName, PTYM_PREFIX, PTY_PREFIX_LEN);
+
+    for (x = X_RANGE; *x != '\0'; x++) {
+        masterName[PTY_PREFIX_LEN] = *x;
+
+        for (y = Y_RANGE; *y != '\0'; y++) {
+            masterName[PTY_PREFIX_LEN + 1] = *y;
+
+            masterFd = open(masterName, O_RDWR);
+
+            if (masterFd == -1) {
+                if (errno == ENOENT)    /* No such file */
+                    return -1;          /* Probably no more pty devices */
+                else                    /* Other error (e.g., pty busy) */
+                    continue;
+
+            } else {            /* Return slave name corresponding to master */
+                n = snprintf(slaveName, snLen, "%s%c%c", PTYS_PREFIX, *x, *y);
+                if (n >= snLen) {
+                    errno = EOVERFLOW;
+                    return -1;
+                } else if (n == -1) {
+                    return -1;
+                }
+
+                return masterFd;
+            }
+        }
+    }
+
+    return -1;                  /* Tried all ptys without success */
+}
+
+/*************************************************************************\
+*                  Copyright (C) Michael Kerrisk, 2020.                   *
+*                                                                         *
+* This program is free software. You may use, modify, and redistribute it *
+* under the terms of the GNU Lesser General Public License as published   *
+* by the Free Software Foundation, either version 3 or (at your option)   *
+* any later version. This program is distributed without any warranty.    *
+* See the files COPYING.lgpl-v3 and COPYING.gpl-v3 for details.           *
+\*************************************************************************/
+
+/* Listing 64-2 */
+
+#define MAX_SNAME 1000
+
+pid_t
+ptyFork(int *masterFd, char *slaveName, size_t snLen,
+        const struct termios *slaveTermios, const struct winsize *slaveWS)
+{
+    int mfd, slaveFd, savedErrno;
+    pid_t childPid;
+    char slname[MAX_SNAME];
+
+    mfd = ptyMasterOpen(slname, MAX_SNAME);
+    if (mfd == -1)
+        return -1;
+
+    if (slaveName != NULL) {            /* Return slave name to caller */
+        if (strlen(slname) < snLen) {
+            strncpy(slaveName, slname, snLen);
+
+        } else {                        /* 'slaveName' was too small */
+            close(mfd);
+            errno = EOVERFLOW;
+            return -1;
+        }
+    }
+
+    childPid = fork();
+
+    if (childPid == -1) {               /* fork() failed */
+        savedErrno = errno;             /* close() might change 'errno' */
+        close(mfd);                     /* Don't leak file descriptors */
+        errno = savedErrno;
+        return -1;
+    }
+
+    if (childPid != 0) {                /* Parent */
+        *masterFd = mfd;                /* Only parent gets master fd */
+        return childPid;                /* Like parent of fork() */
+    }
+
+    /* Child falls through to here */
+
+    if (setsid() == -1)                 /* Start a new session */
+        err_exit("ptyFork:setsid");
+
+    close(mfd);                         /* Not needed in child */
+
+    slaveFd = open(slname, O_RDWR);     /* Becomes controlling tty */
+    if (slaveFd == -1)
+        err_exit("ptyFork:open-slave");
+
+#ifdef TIOCSCTTY                        /* Acquire controlling tty on BSD */
+    if (ioctl(slaveFd, TIOCSCTTY, 0) == -1)
+        err_exit("ptyFork:ioctl-TIOCSCTTY");
+#endif
+
+    if (slaveTermios != NULL)           /* Set slave tty attributes */
+        if (tcsetattr(slaveFd, TCSANOW, slaveTermios) == -1)
+            err_exit("ptyFork:tcsetattr");
+
+    if (slaveWS != NULL)                /* Set slave tty window size */
+        if (ioctl(slaveFd, TIOCSWINSZ, slaveWS) == -1)
+            err_exit("ptyFork:ioctl-TIOCSWINSZ");
+
+    /* Duplicate pty slave to be child's stdin, stdout, and stderr */
+
+    if (dup2(slaveFd, STDIN_FILENO) != STDIN_FILENO)
+        err_exit("ptyFork:dup2-STDIN_FILENO");
+    if (dup2(slaveFd, STDOUT_FILENO) != STDOUT_FILENO)
+        err_exit("ptyFork:dup2-STDOUT_FILENO");
+    if (dup2(slaveFd, STDERR_FILENO) != STDERR_FILENO)
+        err_exit("ptyFork:dup2-STDERR_FILENO");
+
+    if (slaveFd > STDERR_FILENO)        /* Safety check */
+        close(slaveFd);                 /* No longer need this fd */
+
+    return 0;                           /* Like child of fork() */
+}
+
+/*************************************************************************\
+*                  Copyright (C) Michael Kerrisk, 2020.                   *
+*                                                                         *
+* This program is free software. You may use, modify, and redistribute it *
+* under the terms of the GNU Lesser General Public License as published   *
+* by the Free Software Foundation, either version 3 or (at your option)   *
+* any later version. This program is distributed without any warranty.    *
+* See the files COPYING.lgpl-v3 and COPYING.gpl-v3 for details.           *
+\*************************************************************************/
+
+/* Listing 62-3 */
+
+/* Place terminal referred to by 'fd' in cbreak mode (noncanonical mode
+   with echoing turned off). This function assumes that the terminal is
+   currently in cooked mode (i.e., we shouldn't call it if the terminal
+   is currently in raw mode, since it does not undo all of the changes
+   made by the ttySetRaw() function below). Return 0 on success, or -1
+   on error. If 'prevTermios' is non-NULL, then use the buffer to which
+   it points to return the previous terminal settings. */
+
+int
+ttySetCbreak(int fd, struct termios *prevTermios)
+{
+    struct termios t;
+
+    if (tcgetattr(fd, &t) == -1)
+        return -1;
+
+    if (prevTermios != NULL)
+        *prevTermios = t;
+
+    t.c_lflag &= ~(ICANON | ECHO);
+    t.c_lflag |= ISIG;
+
+    t.c_iflag &= ~ICRNL;
+
+    t.c_cc[VMIN] = 1;                   /* Character-at-a-time input */
+    t.c_cc[VTIME] = 0;                  /* with blocking */
+
+    if (tcsetattr(fd, TCSAFLUSH, &t) == -1)
+        return -1;
+
+    return 0;
+}
+
+/* Place terminal referred to by 'fd' in raw mode (noncanonical mode
+   with all input and output processing disabled). Return 0 on success,
+   or -1 on error. If 'prevTermios' is non-NULL, then use the buffer to
+   which it points to return the previous terminal settings. */
+
+int
+ttySetRaw(int fd, struct termios *prevTermios)
+{
+    struct termios t;
+
+    if (tcgetattr(fd, &t) == -1)
+        return -1;
+
+    if (prevTermios != NULL)
+        *prevTermios = t;
+
+    t.c_lflag &= ~(ICANON | ISIG | IEXTEN | ECHO);
+                        /* Noncanonical mode, disable signals, extended
+                           input processing, and echoing */
+
+    t.c_iflag &= ~(BRKINT | ICRNL | IGNBRK | IGNCR | INLCR |
+                      INPCK | ISTRIP | IXON | PARMRK);
+                        /* Disable special handling of CR, NL, and BREAK.
+                           No 8th-bit stripping or parity error handling.
+                           Disable START/STOP output flow control. */
+
+    t.c_oflag &= ~OPOST;                /* Disable all output processing */
+
+    t.c_cc[VMIN] = 1;                   /* Character-at-a-time input */
+    t.c_cc[VTIME] = 0;                  /* with blocking */
+
+    if (tcsetattr(fd, TCSAFLUSH, &t) == -1)
+        return -1;
+
+    return 0;
 }

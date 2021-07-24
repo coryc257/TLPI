@@ -34,6 +34,7 @@ static __SERVER SERVER;
 static void
 __main__iteration(void)
 {
+
 	switch(epoll_wait(SERVER.pol,&SERVER.current, 1, 5000)) {
 	case -1:
 		errExit("epoll_wait\n");

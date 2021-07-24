@@ -43,7 +43,7 @@ main(int argc, char *argv[])
 
     /* Construct server address from first command-line argument */
 
-    sfd = inetConnect(argv[1], argv[2], SOCK_STREAM);
+    sfd = inetConnect(argv[1], argv[2], SOCK_DGRAM);
     if (sfd == -1)
         fatal("Could not connect to server socket");
 
