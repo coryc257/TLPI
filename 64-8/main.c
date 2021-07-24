@@ -63,7 +63,7 @@ main(int argc, char *argv[])
 		break;
 	default:
 		write(master,":w file.txt\n",strlen(":w file.txt\n"));
-		write(master,"ifuck", strlen("ifuck"));
+		write(master,"idog", strlen("idog"));
 		write(master,esc,1);
 		write(master,":wq\n",strlen(":wq\n"));
 
